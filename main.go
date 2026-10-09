@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"math"
 
 	"pacman-ai/assets"
 	"pacman-ai/game"
@@ -10,7 +11,9 @@ import (
 )
 
 func main() {
-	ebiten.SetWindowSize(game.ScreenWidth, game.ScreenHeight)
+	windowWidth := int(math.Round(float64(game.ScreenWidth) * game.ScreenScale))
+	windowHeight := int(math.Round(float64(game.ScreenHeight) * game.ScreenScale))
+	ebiten.SetWindowSize(windowWidth, windowHeight)
 	ebiten.SetWindowTitle("Pacman")
 
 	icons, err := assets.LoadWindowIcons()

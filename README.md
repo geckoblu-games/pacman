@@ -1,22 +1,31 @@
 # Pacman
+A recreation of the arcade game "Pacman" written in GO
 
-Starter project for a Pacman game written in Go using
-[Ebitengine (Ebiten)](https://ebitengine.org/).
+## 🔧 Powered By
 
-Currently, it opens a black window titled `Pacman`, with a game area
-of **224 pixels wide by 288 pixels high**. Both the internal resolution
-and the initial window size are 224 x 288.
-On HiDPI displays, the operating system may apply its own scaling factor.
-Game logic is not implemented yet.
+- [Go](https://go.dev/)
+- [Ebiten](https://ebitengine.org/)
 
-The PNG icons and TTF fonts in the `assets` directory are embedded in the
-executable using `go:embed` in the `assets` package. No external asset files are
-needed at runtime. All four PNG icon sizes are supplied to Ebitengine as window
-icons; their appearance depends on the operating system and window manager.
+## 🎮 Run It
 
-The package provides `assets.LoadWindowIcons()` to decode all window icons and
-`assets.ReadFile(name)` to read embedded files by filename, such as
-`PressStart2P-Regular.ttf`, without an `assets/` prefix.
+If you already have Go installed ([instructions here](https://go.dev/doc/install)), run the game with:
+
+```bash
+go run https://github.com/geckoblu-games/pacman-go
+```
+
+## Main resources
+- the great pacman dossier: (multiple links, because this beautiful article gets nuked frequently)
+  - [The Pac-Man Dossier](https://pacman.holenet.info)
+  - [The Pac-Man Dossier (Archive)](https://web.archive.org/web/20220118071921/https://www.gamedeveloper.com/design/the-pac-man-dossier)
+  - [Pac-Man Ghost AI Explained](https://www.youtube.com/watch?v=ataGotQ7ir8)
+- Videos of the game
+  - [the game in action](https://www.youtube.com/watch?v=-CbyAk3Sn9I)
+  - [longplay until the game glitches out](https://www.youtube.com/watch?v=AuoH0vz3Mqk)
+- [Making Games in Go for Absolute Beginners](https://threedots.tech/post/making-games-in-go/)
+
+### Font
+- [Press Start 2P Font](https://fonts.google.com/specimen/Press+Start+2P)
 
 ## Requirements
 
@@ -57,6 +66,7 @@ go build -o pacman .
 - `main.go`: window setup, application icon, and game startup.
 - `game/game.go`: `Game` type and game loop (`Update`, `Draw`, `Layout`).
 - `game/constants.go`: game constants, including screen dimensions.
+- `game/debug.go`: dashed debug grid generation.
 - `assets/`: embedded font and application icons.
 - `assets/assets.go`: asset embedding and loading helpers.
 - `go.mod`: Go module and Ebitengine version.
