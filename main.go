@@ -4,29 +4,13 @@ import (
 	"log"
 
 	"pacman-ai/assets"
+	"pacman-ai/game"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-const (
-	screenWidth  = 224
-	screenHeight = 288
-)
-
-type Game struct{}
-
-func (game *Game) Update() error {
-	return nil
-}
-
-func (game *Game) Draw(screen *ebiten.Image) {}
-
-func (game *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return screenWidth, screenHeight
-}
-
 func main() {
-	ebiten.SetWindowSize(screenWidth, screenHeight)
+	ebiten.SetWindowSize(game.ScreenWidth, game.ScreenHeight)
 	ebiten.SetWindowTitle("Pacman")
 
 	icons, err := assets.LoadWindowIcons()
@@ -35,7 +19,7 @@ func main() {
 	}
 	ebiten.SetWindowIcon(icons)
 
-	if err := ebiten.RunGame(&Game{}); err != nil {
+	if err := ebiten.RunGame(&game.Game{}); err != nil {
 		log.Fatal(err)
 	}
 }

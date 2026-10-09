@@ -54,7 +54,9 @@ go build -o pacman .
 
 ## Project Structure
 
-- `main.go`: window setup and game loop (`Update`, `Draw`, `Layout`).
+- `main.go`: window setup, application icon, and game startup.
+- `game/game.go`: `Game` type and game loop (`Update`, `Draw`, `Layout`).
+- `game/constants.go`: game constants, including screen dimensions.
 - `assets/`: embedded font and application icons.
 - `assets/assets.go`: asset embedding and loading helpers.
 - `go.mod`: Go module and Ebitengine version.
