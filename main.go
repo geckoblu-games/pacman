@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 
+	"pacman-ai/assets"
+
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
@@ -26,6 +28,12 @@ func (game *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 func main() {
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("Pacman")
+
+	icons, err := assets.LoadWindowIcons()
+	if err != nil {
+		log.Fatal(err)
+	}
+	ebiten.SetWindowIcon(icons)
 
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
