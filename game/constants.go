@@ -1,21 +1,34 @@
 package game
 
 const (
+	// Grid dimensions include the maze and the reserved HUD areas.
 	GridColumns = 28
 	GridRows    = 36
-	CellSize    = 8
+	// CellSize is measured in logical pixels and matches the reference map's grid.
+	CellSize = 16
 
+	// Internal rendering dimensions are independent of window scaling.
 	ScreenWidth  = GridColumns * CellSize
 	ScreenHeight = GridRows * CellSize
 
-	ScreenScale float64 = 2.0
+	// ScreenScale controls the initial window size and supports positive fractional values.
+	ScreenScale float64 = 1.0
 
-	DebugGridEnabled  = true
+	// DebugGridEnabled toggles the grid independently of the gray path backgrounds.
+	DebugGridEnabled = false
+	// DebugGridDashSize defines equal dash and gap lengths; it must be greater than zero.
 	DebugGridDashSize = 1
 
-	DebugAllowedPathEnabled = true
+	// DebugAllowedPathEnabled toggles the reference map's gray path backgrounds.
+	DebugAllowedPathEnabled = false
 )
 
+// AllowedPath lists the 300 gray cells extracted from doc/ReferenceMap.png.
+// Entries are zero-based {column, row} pairs, ordered by row from the top-left.
+// Side tunnels and energizer cells are included; walls, HUD areas, and the
+// black ghost-house interior are excluded. Multiply each coordinate by CellSize
+// to obtain the cell's top-left logical pixel position.
+// Go cannot declare constant arrays; treat this array as read-only.
 var AllowedPath = [...][2]int{
 	{1, 4}, {2, 4}, {3, 4}, {4, 4}, {5, 4}, {6, 4}, {7, 4}, {8, 4},
 	{9, 4}, {10, 4}, {11, 4}, {12, 4}, {15, 4}, {16, 4}, {17, 4}, {18, 4},
