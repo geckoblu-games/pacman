@@ -5,8 +5,29 @@ import (
 	"embed"
 	"fmt"
 	"image"
+	"image/color"
+	"image/draw"
 	"image/png"
+
+	"github.com/hajimehoshi/ebiten/v2"
 )
+
+const (
+	classicTilesetTileSize = 26
+	energizerSourceX       = 8
+	energizerSourceY       = 1
+	coinSize               = 4
+)
+
+// GameImages contains the images used by the game renderer.
+// Debug overlays are generated lazily by the game package.
+type GameImages struct {
+	Walls            *ebiten.Image
+	Energizer        *ebiten.Image
+	Coin             *ebiten.Image
+	DebugGrid        *ebiten.Image
+	DebugAllowedPath *ebiten.Image
+}
 
 // PNG images and TTF fonts are embedded so runtime asset loading needs no external files.
 //
@@ -33,6 +54,52 @@ func LoadImage(name string) (image.Image, error) {
 		return nil, fmt.Errorf("decode image %q: %w", name, err)
 	}
 	return decoded, nil
+}
+
+// LoadImageRegion loads an embedded PNG and returns the requested rectangle.
+func LoadImageRegion(name string, region image.Rectangle) (image.Image, error) {
+	source, err := LoadImage(name)
+	if err != nil {
+		return nil, err
+	}
+	if region.Empty() || !region.In(source.Bounds()) {
+		return nil, fmt.Errorf("image region %v is outside bounds %v for asset %q", region, source.Bounds(), name)
+	}
+
+	cropped := image.NewRGBA(image.Rect(0, 0, region.Dx(), region.Dy()))
+	draw.Draw(cropped, cropped.Bounds(), source, region.Min, draw.Src)
+	return cropped, nil
+}
+
+// LoadGameImages loads and validates all image assets required by the game.
+func LoadGameImages(wallSize image.Point) (GameImages, error) {
+	walls, err := LoadImage("walls.png")
+	if err != nil {
+		return GameImages{}, err
+	}
+	if bounds := walls.Bounds(); bounds.Dx() != wallSize.X || bounds.Dy() != wallSize.Y {
+		return GameImages{}, fmt.Errorf("wall image size is %dx%d, expected %dx%d", bounds.Dx(), bounds.Dy(), wallSize.X, wallSize.Y)
+	}
+
+	energizerRegion := image.Rect(
+		energizerSourceX*classicTilesetTileSize,
+		energizerSourceY*classicTilesetTileSize,
+		(energizerSourceX+1)*classicTilesetTileSize,
+		(energizerSourceY+1)*classicTilesetTileSize,
+	)
+	energizer, err := LoadImageRegion("classic-tileset.png", energizerRegion)
+	if err != nil {
+		return GameImages{}, err
+	}
+	coin := ebiten.NewImage(coinSize, coinSize)
+	// coin.Fill(color.RGBA{R: 255, G: 181, B: 148, A: 255})
+	coin.Fill(color.RGBA{R: 255, G: 255, B: 255, A: 255})
+
+	return GameImages{
+		Walls:     ebiten.NewImageFromImage(walls),
+		Energizer: ebiten.NewImageFromImage(energizer),
+		Coin:      coin,
+	}, nil
 }
 
 // LoadWindowIcons supplies all available icon sizes for the window manager to choose from.

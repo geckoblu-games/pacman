@@ -10,20 +10,20 @@ import (
 // AllowedPath entries are zero-based {column, row} coordinates; cells outside
 // the path stay transparent. The cached image assumes the path does not change.
 func (game *Game) drawDebugAllowedPath(screen *ebiten.Image) {
-	if game.debugAllowedPath == nil {
-		game.debugAllowedPath = ebiten.NewImage(ScreenWidth, ScreenHeight)
+	if game.images.DebugAllowedPath == nil {
+		game.images.DebugAllowedPath = ebiten.NewImage(ScreenWidth, ScreenHeight)
 		pathColor := color.RGBA{R: 79, G: 79, B: 79, A: 255}
 		for _, cell := range AllowedPath {
 			startX := cell[0] * CellSize
 			startY := cell[1] * CellSize
 			for pixelY := startY; pixelY < startY+CellSize; pixelY++ {
 				for pixelX := startX; pixelX < startX+CellSize; pixelX++ {
-					game.debugAllowedPath.Set(pixelX, pixelY, pathColor)
+					game.images.DebugAllowedPath.Set(pixelX, pixelY, pathColor)
 				}
 			}
 		}
 	}
-	screen.DrawImage(game.debugAllowedPath, nil)
+	screen.DrawImage(game.images.DebugAllowedPath, nil)
 }
 
 // newDebugGrid creates a transparent dashed overlay, cached by Game.Draw.
