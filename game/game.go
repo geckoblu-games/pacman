@@ -3,16 +3,26 @@ package game
 
 import (
 	"image"
+	"image/color"
 
 	"pacman-ai/assets"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
+)
+
+const (
+	highScoreFontSize = 14
+	highScoreColumn   = 9
+	oneUpColumn       = 3
+	highScoreTop      = 2
 )
 
 // Game owns the loaded images and lazily initializes debug layers.
 // Use New to initialize the wall image before passing a Game to Ebitengine.
 type Game struct {
-	images assets.GameImages
+	images        assets.GameImages
+	highScoreFace *text.GoTextFace
 }
 
 // New loads the transparent wall layer once and validates its size for 1:1 rendering.
@@ -25,7 +35,11 @@ func New() (*Game, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Game{images: images}, nil
+	highScoreFace, err := assets.LoadTextFace("PressStart2P-Regular.ttf", highScoreFontSize)
+	if err != nil {
+		return nil, err
+	}
+	return &Game{images: images, highScoreFace: highScoreFace}, nil
 }
 
 // Update runs once per simulation tick; gameplay state updates are not implemented yet.
@@ -49,6 +63,8 @@ func (game *Game) Draw(screen *ebiten.Image) {
 		}
 		screen.DrawImage(game.images.DebugGrid, nil)
 	}
+	game.drawTopLabel(screen, "1UP", oneUpColumn)
+	game.drawTopLabel(screen, "HIGH SCORE", highScoreColumn)
 }
 
 func (game *Game) drawCoins(screen *ebiten.Image) {
@@ -71,6 +87,13 @@ func (game *Game) drawEnergizers(screen *ebiten.Image) {
 		op.GeoM.Translate(x, y)
 		screen.DrawImage(game.images.Energizer, op)
 	}
+}
+
+func (game *Game) drawTopLabel(screen *ebiten.Image, label string, column int) {
+	op := &text.DrawOptions{}
+	op.GeoM.Translate(float64(column*CellSize), highScoreTop)
+	op.ColorScale.ScaleWithColor(color.White)
+	text.Draw(screen, label, game.highScoreFace, op)
 }
 
 // Layout keeps the internal resolution fixed, regardless of the window's dimensions.

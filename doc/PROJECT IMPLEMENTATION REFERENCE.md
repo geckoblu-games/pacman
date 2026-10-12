@@ -50,7 +50,7 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. The current imp
 - `classic-tileset.png` is the sprite atlas used for the energizer image. `LoadGameImages` crops the configured 26 x 26 atlas cell and converts it, along with the wall layer, into Ebitengine images. It also creates one reusable 4 x 4 px coin image in RGB (255, 181, 148). The expected wall dimensions are validated during loading.
 - `walls.png` is the transparent maze-wall layer used by the game. It is expected to match the logical screen dimensions exactly. Its documented preparation preserves blue wall pixels from the reference map and restores wall segments obscured by the grid; transparent areas include the ghost-house doorway.
 - The four `icon_*.png` files provide window-manager icon choices at multiple sizes.
-- `PressStart2P-Regular.ttf` is embedded, but no current code loads or draws the font.
+- `PressStart2P-Regular.ttf` is embedded and loaded once for the top-center `HIGH SCORE` label.
 
 ### `doc/`
 
@@ -62,7 +62,7 @@ This directory contains source/reference material: the reference map image, a wa
 2. It configures the title and loads all four window icons through the `assets` package.
 3. `game.New` calls `assets.LoadGameImages` with the expected logical screen size. The loader validates `walls.png`, crops the energizer from `classic-tileset.png`, and returns both as Ebitengine images. A missing, undecodable, or incorrectly sized image prevents startup with an error.
 4. `ebiten.RunGame` invokes the game callbacks. `Update` currently returns immediately, so there is no simulation state or input processing.
-5. `Draw` composes layers in this order: optional allowed-path background, permanent maze walls, coins, energizers, optional dashed grid. Coin positions come from `CoinCoords` and are rendered centered in their grid cells; they are visual-only and are not yet collectible. Debug images are generated lazily by `game` and cached in the `assets.GameImages` bundle. Both debug flags are currently enabled.
+5. `Draw` composes layers in this order: optional allowed-path background, permanent maze walls, coins, energizers, optional dashed grid, then the white `1 UP` and `HIGH SCORE` labels. Both labels use Press Start 2P at the same top offset; `1 UP` begins at column 3 and `HIGH SCORE` at column 9. Coin positions come from `CoinCoords` and are rendered centered in their grid cells; they are visual-only and are not yet collectible. Debug images are generated lazily by `game` and cached in the `assets.GameImages` bundle. Both debug flags are currently enabled.
 6. `Layout` always returns the logical dimensions. Ebitengine scales that fixed-resolution image to the window; resizing does not change the game's grid or logical coordinates.
 
 ## Implementation Decisions
@@ -77,7 +77,7 @@ The display is represented as a 28-column by 36-row grid with 16 logical pixels 
 
 The `assets` package uses `embed.FS` with `//go:embed *.png *.ttf`, so runtime assets are shipped in the executable rather than loaded from external paths. `ReadFile` adds filename context to read errors. `LoadImage` decodes PNG bytes without changing pixel dimensions or colors and adds context to decode errors. `LoadWindowIcons` requests all expected icon sizes in order and fails if any one is unavailable or invalid.
 
-`assets.LoadGameImages` loads and validates the permanent wall layer, crops the energizer sprite from the atlas, and creates the reusable coin image once during construction. `game.Game` retains the returned bundle; no asset file access occurs in the frame loop.
+`assets.LoadGameImages` loads and validates the permanent wall layer, crops the energizer sprite from the atlas, and creates the reusable coin image once during construction. `assets.LoadTextFace` parses the embedded Press Start 2P font when `game.New` initializes. `game.Game` retains the image bundle and font face; no asset file access or font parsing occurs in the frame loop.
 
 ### Debug overlays
 
@@ -91,14 +91,14 @@ The overlays are composed around, rather than baked into, the permanent wall ima
 
 ## Current Scope and Extension Points
 
-The implemented application is currently a rendering foundation: it opens a window and displays the maze, static coin and energizer sprites, and map-debug overlays. The coins are not yet collectible. There is no player/ghost model, tile collision graph, movement or turn logic, input mapping, collectible state, scoring, lives, level state, audio, or HUD rendering in the current code.
+The implemented application is currently a rendering foundation: it opens a window and displays the maze, static coin and energizer sprites, map-debug overlays, and the `1 UP` and `HIGH SCORE` labels. The coins are not yet collectible. There is no player/ghost model, tile collision graph, movement or turn logic, input mapping, collectible state, scoring, lives, level state, or audio in the current code.
 
 Natural ownership boundaries for future work are:
 
 - Add simulation state and update behavior to `game.Game` or to types owned by the `game` package; keep `Update` responsible for advancing it.
 - Add input handling in the game update path and render actors/pellets in `Draw` with an explicit layer order.
 - Use the grid and `AllowedPath` as reference data, but validate or replace the latter with a gameplay-oriented maze representation before using it as authoritative collision data.
-- Load and render the embedded font through a text-rendering dependency when HUD text is introduced; embedding the TTF alone does not make it available on screen.
+- Extend the existing HUD labels and use the loaded font when additional score, lives, or level text is implemented.
 
 ## Build and Verification
 

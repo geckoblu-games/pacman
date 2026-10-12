@@ -10,13 +10,14 @@ import (
 	"image/png"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 )
 
 const (
 	classicTilesetTileSize = 26
 	energizerSourceX       = 8
 	energizerSourceY       = 1
-	coinSize               = 4
+	coinSize               = 2
 )
 
 // GameImages contains the images used by the game renderer.
@@ -69,6 +70,22 @@ func LoadImageRegion(name string, region image.Rectangle) (image.Image, error) {
 	cropped := image.NewRGBA(image.Rect(0, 0, region.Dx(), region.Dy()))
 	draw.Draw(cropped, cropped.Bounds(), source, region.Min, draw.Src)
 	return cropped, nil
+}
+
+// LoadTextFace loads an embedded OpenType or TrueType font at the requested size.
+func LoadTextFace(name string, size float64) (*text.GoTextFace, error) {
+	if size <= 0 {
+		return nil, fmt.Errorf("font size must be positive, got %v", size)
+	}
+	data, err := ReadFile(name)
+	if err != nil {
+		return nil, err
+	}
+	source, err := text.NewGoTextFaceSource(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("parse font %q: %w", name, err)
+	}
+	return &text.GoTextFace{Source: source, Size: size}, nil
 }
 
 // LoadGameImages loads and validates all image assets required by the game.
