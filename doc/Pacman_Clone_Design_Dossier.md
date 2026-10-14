@@ -94,6 +94,7 @@ Three sources of points, matching the dossier:
 ### 3.7 Fruit and Fruit Counter
 - **[FACT]** Bonus fruit spawns twice per round: after 70 dots eaten, and after 170 dots eaten. It appears below the ghost house, stays on screen a randomized 9–10 seconds (not a fixed value, and not reproducible via pattern-replay), and is worth a level-dependent amount (see Table in §5.3).
 - **[FACT]** A "fruit/level counter" strip shows the symbols for the last six completed rounds plus the current one, along the bottom of the screen.
+- **[ASSUMPTION]** Chosen HUD layout: the current level symbol occupies the far-right slot, mirrored horizontally from the leftmost reserve-life icon and at the same height. Earlier levels occupy slots every two grid columns to its left. On advancing, the new symbol enters the rightmost slot and the previous symbols shift left, dropping the oldest when more than seven would be visible. Repeated symbols remain separate icons; eating or missing a bonus fruit does not change this counter.
 
 ---
 

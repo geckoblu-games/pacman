@@ -13,93 +13,49 @@ Welcome to *The Pac-Man Dossier*! This web page is dedicated to providing *Pac-M
 ## Table of Contents
 
 - [The Pac-Man Dossier](#the-pac-man-dossier)
-
   - [Foreword](#foreword)
-
   - [Table of Contents](#table-of-contents)
-
   - [Introduction](#introduction)
-
   - [Chapter 1 — Welcome To The Machine](#chapter-1--welcome-to-the-machine)
-
   - [Chapter 2 — Gameplay Details](#chapter-2--gameplay-details)
-
     - [The Basics](#the-basics)
-
     - [Modus Operandi](#modus-operandi)
-
     - [Reversal Of Fortune](#reversal-of-fortune)
-
     - [Scatter, Chase, Repeat...](#scatter-chase-repeat)
-
     - [Frightening Behavior](#frightening-behavior)
-
     - [Speed](#speed)
-
     - [Cornering](#cornering)
-
     - [Home Sweet Home](#home-sweet-home)
-
     - [Areas To Exploit](#areas-to-exploit)
-
   - [Chapter 3 — Maze Logic 101](#chapter-3--maze-logic-101)
-
     - [What Tile Am I In?](#what-tile-am-i-in)
-
     - [Just Passing Through](#just-passing-through)
-
     - [Target Tiles](#target-tiles)
-
     - [Looking Ahead](#looking-ahead)
-
     - [Intersections](#intersections)
-
     - [Fixed Target Tiles](#fixed-target-tiles)
-
   - [Chapter 4 — Meet The Ghosts](#chapter-4--meet-the-ghosts)
-
     - [Blinky](#blinky)
-
     - [Pinky](#pinky)
-
     - [Inky](#inky)
-
     - [Clyde](#clyde)
-
   - [Chapter 5 — Deciphering The Split Screen](#chapter-5--deciphering-the-split-screen)
-
     - [On The Edge Of Forever](#on-the-edge-of-forever)
-
     - [Playing The Level](#playing-the-level)
-
     - [Believe It Or Not](#believe-it-or-not)
-
   - [References and Further Reading](#references-and-further-reading)
-
   - [Appendix A — Reference Tables](#appendix-a--reference-tables)
-
     - [Table A.1 — Level Specifications](#table-a1--level-specifications)
-
     - [Table A.2 — Difficulty Specifications](#table-a2--difficulty-specifications)
-
-  - [Appendix B — Easter Eggs & Tricks](#appendix-b--easter-eggs--tricks)
-
+  - [Appendix B — Easter Eggs \& Tricks](#appendix-b--easter-eggs--tricks)
     - [NAMCO Easter Egg](#namco-easter-egg)
-
     - [Ghost Bug](#ghost-bug)
-
   - [Appendix C — Hardware Information](#appendix-c--hardware-information)
-
     - [Specifications:](#specifications)
-
     - [Midway Operator's Reference Books:](#midway-operators-reference-books)
-
   - [Appendix D — Vintage Pac-Man Guides](#appendix-d--vintage-pac-man-guides)
-
   - [Glossary](#glossary)
-
   - [Frequently Asked Questions](#frequently-asked-questions)
-
   - [About the Author](#about-the-author)
 
 ## Introduction
@@ -190,15 +146,15 @@ Ghosts alternate between scatter and chase modes during gameplay at predetermine
 For the first four levels, the first two scatter periods last for seven seconds each. They change to five seconds each for level five and beyond. The third scatter mode is always set to five seconds. The fourth scatter period lasts for five seconds on level one, but then is only 1/60th of a second for the rest of play. When this occurs, it appears as a simple reversal of direction by the ghosts. The first and second chase periods last for 20 seconds each. The third chase period is 20 seconds on level one but then balloons to 1,033 seconds for levels two through four, and 1,037 seconds for all levels beyond—lasting over 17 minutes! If the ghosts enter frightened mode, the scatter/chase timer is paused. When time runs out, they return to the mode they were in before being frightened and the scatter/chase timer resumes. This information is summarized in the following table (all values are in seconds):
 
 | **Mode** | **Level 1** | **Levels 2–4** | **Levels 5+** |
-| :-: | :-: | :-: | :-: |
-| Scatter | 7 | 7 | 5 |
-| Chase | 20 | 20 | 20 |
-| Scatter | 7 | 7 | 5 |
-| Chase | 20 | 20 | 20 |
-| Scatter | 5 | 5 | 5 |
-| Chase | 20 | 1033 | 1037 |
-| Scatter | 5 | 1/60 | 1/60 |
-| Chase | indefinite | indefinite | indefinite |
+| :------: | :---------: | :------------: | :-----------: |
+| Scatter  |      7      |       7        |       5       |
+|  Chase   |     20      |       20       |      20       |
+| Scatter  |      7      |       7        |       5       |
+|  Chase   |     20      |       20       |      20       |
+| Scatter  |      5      |       5        |       5       |
+|  Chase   |     20      |      1033      |     1037      |
+| Scatter  |      5      |      1/60      |     1/60      |
+|  Chase   | indefinite  |   indefinite   |  indefinite   |
 
 
 ### Frightening Behavior
@@ -209,13 +165,13 @@ Whenever Pac-Man eats one of the four energizer dots located near the corners of
 
 The game starts with Pac-Man at 80% of his maximum speed. By the fifth level, Pac-Man is moving at full speed and will continue to do so until the 21st level. At that point, he slows back down to 90% and holds this speed for the remainder of the game. Every time Pac-Man eats a regular dot, he stops moving for one frame (1/60th of a second), slowing his progress by roughly ten percent—just enough for a following ghost to overtake him. Eating an energizer dot causes Pac-Man to stop moving for three frames. The normal speed maintained by the ghosts is a little slower than Pac-Man's until the 21st level when they start moving faster than he does. If a ghost enters a side tunnel, however, its speed is cut nearly in half. When frightened, ghosts move at a much slower rate of speed than normal and, for levels one through four, Pac-Man also speeds up. The table below summarizes the speed data for both Pac-Man and the ghosts, per level. This information is also contained in [Table A.1](#table-a1--level-specifications) in the appendices.
 
-|  | **PAC-MAN SPEED** | **GHOST SPEED** |
-| - | :-: | :-: |
-| **LEVEL** | **NORM** | **NORM DOTS** |
-| 1 | 80% | ~71% |
-| 2 – 4 | 90% | ~79% |
-| 5 – 20 | 100% | ~87% |
-| 21+ | 90% | ~79% |
+|           | **PAC-MAN SPEED** | **GHOST SPEED** |
+| --------- | :---------------: | :-------------: |
+| **LEVEL** |     **NORM**      |  **NORM DOTS**  |
+| 1         |        80%        |      ~71%       |
+| 2 – 4     |        90%        |      ~79%       |
+| 5 – 20    |       100%        |      ~87%       |
+| 21+       |        90%        |      ~79%       |
 
 
 ### Cornering
@@ -244,7 +200,7 @@ Whenever a life is lost, the system disables (but does not reset) the ghosts' in
 
 If dot counters were the only control, Pac-Man could simply stop eating dots early on and keep the ghosts trapped inside the house forever. Consequently, a separate timer control was implemented to handle this case by tracking the amount of time elapsed since Pac-Man has last eaten a dot. This timer is always running but gets reset to zero each time a dot is eaten. Anytime Pac-Man avoids eating dots long enough for the timer to reach its limit, the most-preferred ghost waiting in the ghost house (if any) is forced to leave immediately, and the timer is reset to zero. The same order of preference described above is used by this control as well. The game begins with an initial timer limit of four seconds, but lowers to it to three seconds starting with level five.
 
-The more astute reader may have already noticed there is subtle flaw in this system resulting in a way to keep Pinky, Inky, and Clyde inside the ghost house for a very long time after eating them. The trick involves having to sacrifice a life in order to reset and enable the global dot counter, and then making sure Clyde exits the house *before* that counter is equal to 32. This is accomplished by avoiding eating dots and waiting for the timer limit to force Clyde out. Once Clyde is moving for the exit, start eating dots again until at least 32 dots have been consumed since the life was lost. Now head for an energizer and gobble up some ghosts. Blinky will leave the house immediately as usual, but the other three ghosts will remain “stuck” inside as long as Pac-Man continues eating dots with sufficient frequency as not to trigger the control timer. Why does this happen? The key lies in how the global dot counter works—it cannot be deactivated if Clyde is outside the house when the counter has a value of 32. By letting the timer force Clyde out before 32 dots are eaten, the global dot counter will keep counting dots instead of deactivating when it reaches 32. Now when the ghosts are eaten by Pac-Man and return home, they will still be using the global dot counter to determine when to leave. As previously described, however, this counter's logic only checks for three values: 7, 17, and 32, and once those numbers are exceeded, the counter has no way to release the ghosts associated with them. The only control left to release the ghosts is the timer which can be easily avoided by eating a dot every so often to reset it. 
+The more astute reader may have already noticed there is subtle flaw in this system resulting in a way to keep Pinky, Inky, and Clyde inside the ghost house for a very long time after eating them. The trick involves having to sacrifice a life in order to reset and enable the global dot counter, and then making sure Clyde exits the house *before* that counter is equal to 32. This is accomplished by avoiding eating dots and waiting for the timer limit to force Clyde out. Once Clyde is moving for the exit, start eating dots again until at least 32 dots have been consumed since the life was lost. Now head for an energizer and gobble up some ghosts. Blinky will leave the house immediately as usual, but the other three ghosts will remain “stuck” inside as long as Pac-Man continues eating dots with sufficient frequency as not to trigger the control timer. Why does this happen? The key lies in how the global dot counter works—it cannot be deactivated if Clyde is outside the house when the counter has a value of 32. By letting the timer force Clyde out before 32 dots are eaten, the global dot counter will keep counting dots instead of deactivating when it reaches 32. Now when the ghosts are eaten by Pac-Man and return home, they will still be using the global dot counter to determine when to leave. As previously described, however, this counter's logic only checks for three values: 7, 17, and 32, and once those numbers are exceeded, the counter has no way to release the ghosts associated with them. The only control left to release the ghosts is the timer which can be easily avoided by eating a dot every so often to reset it.
 
 The last thing to mention about the ghost house is how to determine whether a ghost will move right or left after exiting the home. Ghosts typically move to the left once they get outside, but if the system changes modes one or more times when a ghost is inside, that ghost will move to the right instead of the left upon leaving the house.
 
@@ -282,7 +238,7 @@ The root cause of this elusive peculiarity lies in the way the game detects coll
 
 ![](tpmd_images/PassthruBug.png)
 
-The above picture illustrates the conditions necessary to produce this curious behavior. There are five consecutive frames showing Blinky and Pac-Man passing through each other. Below each frame is the same scene represented by the tiles they currently occupy and the per-pixel location of their center points. Pac-Man and Blinky are at just the right position and speed relative to one another to cause them to swap tiles with each other simultaneously. In other words, Pac-Man's center point moves upwards into Blinky's tile in the same 1/60th of a second that Blinky's center point moves downwards into Pac-Man's tile, resulting in them moving past each other without colliding. Note that Pac-Man's origin point is centered on the top edge of his tile in frame four; this is still considered to be inside the bottom tile, but moving up one more pixel will push him over the edge into the next one. Pac-Man and Blinky have now swapped tiles with each other in frame five, and Pac-Man can go on his merry way because he never “collided” (i.e., shared the same tile) with Blinky at all! 
+The above picture illustrates the conditions necessary to produce this curious behavior. There are five consecutive frames showing Blinky and Pac-Man passing through each other. Below each frame is the same scene represented by the tiles they currently occupy and the per-pixel location of their center points. Pac-Man and Blinky are at just the right position and speed relative to one another to cause them to swap tiles with each other simultaneously. In other words, Pac-Man's center point moves upwards into Blinky's tile in the same 1/60th of a second that Blinky's center point moves downwards into Pac-Man's tile, resulting in them moving past each other without colliding. Note that Pac-Man's origin point is centered on the top edge of his tile in frame four; this is still considered to be inside the bottom tile, but moving up one more pixel will push him over the edge into the next one. Pac-Man and Blinky have now swapped tiles with each other in frame five, and Pac-Man can go on his merry way because he never “collided” (i.e., shared the same tile) with Blinky at all!
 
 ### Target Tiles
 
@@ -384,10 +340,10 @@ During chase mode, Clyde's targeting logic changes based on his proximity to Pac
 
 ## Chapter 5 — Deciphering The Split Screen
 
-> *“This is the way the world ends*  
-*This is the way the world ends*  
-*This is the way the world ends*  
-*Not with a bang but with a whimper.”*  
+> *“This is the way the world ends*
+*This is the way the world ends*
+*This is the way the world ends*
+*Not with a bang but with a whimper.”*
 *—T. S. Eliot*
 
 ### On The Edge Of Forever
@@ -449,28 +405,28 @@ In spite of the evidence against there being a way to get past level 256, rumors
 100% speed = 75.75757625 pixels/sec
 
 | **Level** | **Bonus Symbol** | **Bonus Points** | **Pac-Man Speed** | **Pac-Man Dots Speed** | **Ghost Speed** | **Ghost Tunnel Speed** | **Elroy 1 Dots Left** | **Elroy 1 Speed** | **Elroy 2 Dots Left** | **Elroy 2 Speed** | **Fright. Pac-Man Speed** | **Fright Pac-Man Dots Speed** | **Fright Ghost Speed** | **Fright. Time (in sec.)** | **\# of Flashes** |
-| :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| 1 | Cherries | 100 | 80% | ~71% | 75% | 40% | 20 | 80% | 10 | 85% | 90% | ~79% | 50% | 6 | 5 |
-| 2 | Strawberry | 300 | 90% | ~79% | 85% | 45% | 30 | 90% | 15 | 95% | 95% | ~83% | 55% | 5 | 5 |
-| 3 | Peach | 500 | 90% | ~79% | 85% | 45% | 40 | 90% | 20 | 95% | 95% | ~83% | 55% | 4 | 5 |
-| 4 | Peach | 500 | 90% | ~79% | 85% | 45% | 40 | 90% | 20 | 95% | 95% | ~83% | 55% | 3 | 5 |
-| 5 | Apple | 700 | 100% | ~87% | 95% | 50% | 40 | 100% | 20 | 105% | 100% | ~87% | 60% | 2 | 5 |
-| 6 | Apple | 700 | 100% | ~87% | 95% | 50% | 50 | 100% | 25 | 105% | 100% | ~87% | 60% | 5 | 5 |
-| 7 | Grapes | 1000 | 100% | ~87% | 95% | 50% | 50 | 100% | 25 | 105% | 100% | ~87% | 60% | 2 | 5 |
-| 8 | Grapes | 1000 | 100% | ~87% | 95% | 50% | 50 | 100% | 25 | 105% | 100% | ~87% | 60% | 2 | 5 |
-| 9 | Galaxian | 2000 | 100% | ~87% | 95% | 50% | 60 | 100% | 30 | 105% | 100% | ~87% | 60% | 1 | 3 |
-| 10 | Galaxian | 2000 | 100% | ~87% | 95% | 50% | 60 | 100% | 30 | 105% | 100% | ~87% | 60% | 5 | 5 |
-| 11 | Bell | 3000 | 100% | ~87% | 95% | 50% | 60 | 100% | 30 | 105% | 100% | ~87% | 60% | 2 | 5 |
-| 12 | Bell | 3000 | 100% | ~87% | 95% | 50% | 80 | 100% | 40 | 105% | 100% | ~87% | 60% | 1 | 3 |
-| 13 | Key | 5000 | 100% | ~87% | 95% | 50% | 80 | 100% | 40 | 105% | 100% | ~87% | 60% | 1 | 3 |
-| 14 | Key | 5000 | 100% | ~87% | 95% | 50% | 80 | 100% | 40 | 105% | 100% | ~87% | 60% | 3 | 5 |
-| 15 | Key | 5000 | 100% | ~87% | 95% | 50% | 100 | 100% | 50 | 105% | 100% | ~87% | 60% | 1 | 3 |
-| 16 | Key | 5000 | 100% | ~87% | 95% | 50% | 100 | 100% | 50 | 105% | 100% | ~87% | 60% | 1 | 3 |
-| 17 | Key | 5000 | 100% | ~87% | 95% | 50% | 100 | 100% | 50 | 105% | – | – | – | – | – |
-| 18 | Key | 5000 | 100% | ~87% | 95% | 50% | 100 | 100% | 50 | 105% | 100% | ~87% | 60% | 1 | 3 |
-| 19 | Key | 5000 | 100% | ~87% | 95% | 50% | 120 | 100% | 60 | 105% | – | – | – | – | – |
-| 20 | Key | 5000 | 100% | ~87% | 95% | 50% | 120 | 100% | 60 | 105% | – | – | – | – | – |
-| 21+ | Key | 5000 | 90% | ~79% | 95% | 50% | 120 | 100% | 60 | 105% | – | – | – | – | – |
+| :-------: | :--------------: | :--------------: | :---------------: | :--------------------: | :-------------: | :--------------------: | :-------------------: | :---------------: | :-------------------: | :---------------: | :-----------------------: | :---------------------------: | :--------------------: | :------------------------: | :---------------: |
+|     1     |     Cherries     |       100        |        80%        |          ~71%          |       75%       |          40%           |          20           |        80%        |          10           |        85%        |            90%            |             ~79%              |          50%           |             6              |         5         |
+|     2     |    Strawberry    |       300        |        90%        |          ~79%          |       85%       |          45%           |          30           |        90%        |          15           |        95%        |            95%            |             ~83%              |          55%           |             5              |         5         |
+|     3     |      Peach       |       500        |        90%        |          ~79%          |       85%       |          45%           |          40           |        90%        |          20           |        95%        |            95%            |             ~83%              |          55%           |             4              |         5         |
+|     4     |      Peach       |       500        |        90%        |          ~79%          |       85%       |          45%           |          40           |        90%        |          20           |        95%        |            95%            |             ~83%              |          55%           |             3              |         5         |
+|     5     |      Apple       |       700        |       100%        |          ~87%          |       95%       |          50%           |          40           |       100%        |          20           |       105%        |           100%            |             ~87%              |          60%           |             2              |         5         |
+|     6     |      Apple       |       700        |       100%        |          ~87%          |       95%       |          50%           |          50           |       100%        |          25           |       105%        |           100%            |             ~87%              |          60%           |             5              |         5         |
+|     7     |      Grapes      |       1000       |       100%        |          ~87%          |       95%       |          50%           |          50           |       100%        |          25           |       105%        |           100%            |             ~87%              |          60%           |             2              |         5         |
+|     8     |      Grapes      |       1000       |       100%        |          ~87%          |       95%       |          50%           |          50           |       100%        |          25           |       105%        |           100%            |             ~87%              |          60%           |             2              |         5         |
+|     9     |     Galaxian     |       2000       |       100%        |          ~87%          |       95%       |          50%           |          60           |       100%        |          30           |       105%        |           100%            |             ~87%              |          60%           |             1              |         3         |
+|    10     |     Galaxian     |       2000       |       100%        |          ~87%          |       95%       |          50%           |          60           |       100%        |          30           |       105%        |           100%            |             ~87%              |          60%           |             5              |         5         |
+|    11     |       Bell       |       3000       |       100%        |          ~87%          |       95%       |          50%           |          60           |       100%        |          30           |       105%        |           100%            |             ~87%              |          60%           |             2              |         5         |
+|    12     |       Bell       |       3000       |       100%        |          ~87%          |       95%       |          50%           |          80           |       100%        |          40           |       105%        |           100%            |             ~87%              |          60%           |             1              |         3         |
+|    13     |       Key        |       5000       |       100%        |          ~87%          |       95%       |          50%           |          80           |       100%        |          40           |       105%        |           100%            |             ~87%              |          60%           |             1              |         3         |
+|    14     |       Key        |       5000       |       100%        |          ~87%          |       95%       |          50%           |          80           |       100%        |          40           |       105%        |           100%            |             ~87%              |          60%           |             3              |         5         |
+|    15     |       Key        |       5000       |       100%        |          ~87%          |       95%       |          50%           |          100          |       100%        |          50           |       105%        |           100%            |             ~87%              |          60%           |             1              |         3         |
+|    16     |       Key        |       5000       |       100%        |          ~87%          |       95%       |          50%           |          100          |       100%        |          50           |       105%        |           100%            |             ~87%              |          60%           |             1              |         3         |
+|    17     |       Key        |       5000       |       100%        |          ~87%          |       95%       |          50%           |          100          |       100%        |          50           |       105%        |             –             |               –               |           –            |             –              |         –         |
+|    18     |       Key        |       5000       |       100%        |          ~87%          |       95%       |          50%           |          100          |       100%        |          50           |       105%        |           100%            |             ~87%              |          60%           |             1              |         3         |
+|    19     |       Key        |       5000       |       100%        |          ~87%          |       95%       |          50%           |          120          |       100%        |          60           |       105%        |             –             |               –               |           –            |             –              |         –         |
+|    20     |       Key        |       5000       |       100%        |          ~87%          |       95%       |          50%           |          120          |       100%        |          60           |       105%        |             –             |               –               |           –            |             –              |         –         |
+|    21+    |       Key        |       5000       |        90%        |          ~79%          |       95%       |          50%           |          120          |       100%        |          60           |       105%        |             –             |               –               |           –            |             –              |         –         |
 
 
 ### Table A.2 — Difficulty Specifications
@@ -478,28 +434,28 @@ In spite of the evidence against there being a way to get past level 256, rumors
 There is a small spot on the Pac-Man PCB where you can solder two pads together to set the game to “hard” difficulty. The only difference in hard difficulty is that five of the levels (1, 3, 6, 19, and 20) are eliminated from play. The system does *not* eliminate any of the bonus symbols, however, causing much confusion as to what level you're really playing. Level two is the first board in hard difficulty for example, but the cherry symbol is used instead of the strawberry. It's still level two in terms of gameplay, but with cherry symbols in place of the usual strawberries. Also, the bonus point values are changed to match the current symbol being used. You can determine the difficulty setting of a machine by observing which ghost kills Pac-Man during the attract mode demo game. In normal difficulty, Pac-Man gets captured by Inky in the lower-left area of the maze. If the difficulty jumper has been connected, however, he is captured by Clyde near the same location. |
 
 | **Normal** | **Normal Bonus** | **Hard** | **Hard Bonus** |
-| :-: | :-: | :-: | :-: |
-| 1 | Cherries | – | – |
-| 2 | Strawberry | 2 | Cherries |
-| 3 | Peach 1 | – | – |
-| 4 | Peach 2 | 4 | Strawberry |
-| 5 | Apple 1 | 5 | Peach 1 |
-| 6 | Apple 2 | – | – |
-| 7 | Grapes 1 | 7 | Peach 2 |
-| 8 | Grapes 2 | 8 | Apple 1 |
-| 9 | Galaxian 1 | 9 | Apple 2 |
-| 10 | Galaxian 2 | 10 | Grapes 1 |
-| 11 | Bell 1 | 11 | Grapes 2 |
-| 12 | Bell 2 | 12 | Galaxian 1 |
-| 13 | Key 1 | 13 | Galaxian 2 |
-| 14 | Key 2 | 14 | Bell 1 |
-| 15 | Key 3 | 15 | Bell 2 |
-| 16 | Key 4 | 16 | Key 1 |
-| 17 | Key 5 | 17 | Key 2 |
-| 18 | Key 6 | 18 | Key 3 |
-| 19 | Key 7 | – | – |
-| 20 | Key 8 | – | – |
-| 21+ | Key 9 | 21+ | Key 4 |
+| :--------: | :--------------: | :------: | :------------: |
+|     1      |     Cherries     |    –     |       –        |
+|     2      |    Strawberry    |    2     |    Cherries    |
+|     3      |     Peach 1      |    –     |       –        |
+|     4      |     Peach 2      |    4     |   Strawberry   |
+|     5      |     Apple 1      |    5     |    Peach 1     |
+|     6      |     Apple 2      |    –     |       –        |
+|     7      |     Grapes 1     |    7     |    Peach 2     |
+|     8      |     Grapes 2     |    8     |    Apple 1     |
+|     9      |    Galaxian 1    |    9     |    Apple 2     |
+|     10     |    Galaxian 2    |    10    |    Grapes 1    |
+|     11     |      Bell 1      |    11    |    Grapes 2    |
+|     12     |      Bell 2      |    12    |   Galaxian 1   |
+|     13     |      Key 1       |    13    |   Galaxian 2   |
+|     14     |      Key 2       |    14    |     Bell 1     |
+|     15     |      Key 3       |    15    |     Bell 2     |
+|     16     |      Key 4       |    16    |     Key 1      |
+|     17     |      Key 5       |    17    |     Key 2      |
+|     18     |      Key 6       |    18    |     Key 3      |
+|     19     |      Key 7       |    –     |       –        |
+|     20     |      Key 8       |    –     |       –        |
+|    21+     |      Key 9       |   21+    |     Key 4      |
 
 
 ## Appendix B — Easter Eggs & Tricks
@@ -556,73 +512,73 @@ A curious bug can be triggered when Pac-Man eats a ghost just as it is leaving t
 
 ## Glossary
 
-|  |  |
-| - | - |
-| **apple:** | The bonus symbol for levels five and six. Worth 700 points. |
-| **bell:** | The bonus symbol for levels eleven and twelve. Worth 3,000 points. |
-| **Blinky:** | The red ghost. Also known as “Akabei” or “Macky” in *Puck-Man*. |
-| **bonus symbol:** | The often fruit-related symbol that appears twice per level below the ghost house and can be eaten for additional scoring. The point-value depends on the specific symbol and can range anywhere from 100 to 5,000 points each. Also known as *fruit*. |
-| **cherries:** | The bonus symbol for the first round of play. Worth 100 points. |
-| **Clyde:** | The orange ghost. Also known as “Guzuta” or “Mocky” in *Puck-Man*. |
-| **cornering:** | The technique of moving the joystick in the direction one wishes to go well before reaching the center of a turn, ensuring Pac-Man will take the turn as quickly as possible. |
-| **Cruise Elroy:** | When a certain number of dots are all that remain in a level, Blinky (red ghost) will change “gears”, speeding up as well as chasing Pac-Man even in scatter mode. He speeds up yet again when half the dots remain from the first change, |
-| **dots:** | The 244 objects in the maze Pac-Man must eat to move on to the next round. There are 240 small dots worth 10 points each, and 4 energizer dots worth 50 points each. Also known as *pills*. |
-| **energizer:** | One of four, large, flashing dots located near the corners of the maze worth 50 points each. When Pac-Man eats an energizer, the ghosts simultaneously reverse direction and, on earlier levels, turn dark blue. Pac-Man can then eat the blue ghosts for additional points, scoring more for each consecutive ghost eaten from one energizer: 200, 400, 800, and 1,600 points respectively. Also known as a *power pills, fuel tanks, and vitamins*. |
-| **flipping:** | “Flipping the machine” refers to when a player earns one million points. The game is unable to display a score larger than 999,999, so the score readout “flips” over to zero and keeps counting. Also known as *rolling the machine*. |
-| **fruit:** | See **bonus symbol**. |
-| **galaxian:** | The bonus symbol for levels nine and ten. Also known as a *tulip* or a *thunderbird*. Worth 2,000 points. |
-| **ghost house:** | The rectangular area in the middle of the maze where the ghosts start each new level and new life, returning to the house whenever they are captured by Pac-Man. Also known as the *monster pen*. |
-| **ghosts:** | Pac-Man's four enemies in the maze are typically referred to as *ghosts* or *monsters*. |
-| **grapes:** | The bonus symbol for levels seven and eight. Also known as a *melon* or a *grenade*. Worth 1,000 points. |
-| **grenade:** | See **grapes**. |
-| **head faking:** | Changing Pac-Man's direction back and forth in quick succession in an attempt to affect the turning logic of one or more ghosts in play. Blinky and Clyde do not use Pac-Man's current direction in their chase logic, so they are unaffected by head faking. |
-| **Inky:** | The blue ghost. Also known as “Aosuke” or “Mucky” in *Puck-Man*. |
-| **intersection:** | Anywhere pathways in the maze intersect, yielding more than one option on which way to proceed. |
-| **key:** | The bonus symbol for levels 13 and above. Worth 5,000 points. |
-| **melon:** | See **grapes**. |
-| **monster pen:** | See **ghost house**. |
-| **monsters:** | See **ghosts**. |
-| **orange:** | See **peach**. |
-| **pattern:** | A memorized series of turns associated with a particular level or levels that, when repeated, clears the maze of dots without getting Pac-Man captured by any of the ghosts. Also known as a *routine.* |
-| **peach:** | The bonus symbol for levels three and four. Also known as an *orange*. Worth 500 points. |
-| **pills:** | See **dots**. |
-| **Pinky:** | The pink ghost. Also known as “Micky” in *Puck-Man*. |
-| **power pill:** | See **energizer**. |
-| **routine:** | See **pattern**. |
-| **side tunnel:** | The connecting tunnel between the right and left edges of the screen. Entering this tunnel will “wrap” the player around to the other side of the screen. The monsters always suffer a speed penalty while in the tunnel while Pac-Man does not. Also known as *The Tube, The Time Warp, and The Scoot*. |
-| **split screen:** | The 256th level of the game, where the right half of the screen is filled with garbage instead of the usual maze. |
-| **strawberry:** | The bonus symbol for level two. Worth 300 points. |
-| **thunderbird:** | See **galaxian**. |
-| **tulip:** | See **galaxian**. |
+|                   |                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **apple:**        | The bonus symbol for levels five and six. Worth 700 points.                                                                                                                                                                                                                                                                                                                                                                                           |
+| **bell:**         | The bonus symbol for levels eleven and twelve. Worth 3,000 points.                                                                                                                                                                                                                                                                                                                                                                                    |
+| **Blinky:**       | The red ghost. Also known as “Akabei” or “Macky” in *Puck-Man*.                                                                                                                                                                                                                                                                                                                                                                                       |
+| **bonus symbol:** | The often fruit-related symbol that appears twice per level below the ghost house and can be eaten for additional scoring. The point-value depends on the specific symbol and can range anywhere from 100 to 5,000 points each. Also known as *fruit*.                                                                                                                                                                                                |
+| **cherries:**     | The bonus symbol for the first round of play. Worth 100 points.                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Clyde:**        | The orange ghost. Also known as “Guzuta” or “Mocky” in *Puck-Man*.                                                                                                                                                                                                                                                                                                                                                                                    |
+| **cornering:**    | The technique of moving the joystick in the direction one wishes to go well before reaching the center of a turn, ensuring Pac-Man will take the turn as quickly as possible.                                                                                                                                                                                                                                                                         |
+| **Cruise Elroy:** | When a certain number of dots are all that remain in a level, Blinky (red ghost) will change “gears”, speeding up as well as chasing Pac-Man even in scatter mode. He speeds up yet again when half the dots remain from the first change,                                                                                                                                                                                                            |
+| **dots:**         | The 244 objects in the maze Pac-Man must eat to move on to the next round. There are 240 small dots worth 10 points each, and 4 energizer dots worth 50 points each. Also known as *pills*.                                                                                                                                                                                                                                                           |
+| **energizer:**    | One of four, large, flashing dots located near the corners of the maze worth 50 points each. When Pac-Man eats an energizer, the ghosts simultaneously reverse direction and, on earlier levels, turn dark blue. Pac-Man can then eat the blue ghosts for additional points, scoring more for each consecutive ghost eaten from one energizer: 200, 400, 800, and 1,600 points respectively. Also known as a *power pills, fuel tanks, and vitamins*. |
+| **flipping:**     | “Flipping the machine” refers to when a player earns one million points. The game is unable to display a score larger than 999,999, so the score readout “flips” over to zero and keeps counting. Also known as *rolling the machine*.                                                                                                                                                                                                                |
+| **fruit:**        | See **bonus symbol**.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **galaxian:**     | The bonus symbol for levels nine and ten. Also known as a *tulip* or a *thunderbird*. Worth 2,000 points.                                                                                                                                                                                                                                                                                                                                             |
+| **ghost house:**  | The rectangular area in the middle of the maze where the ghosts start each new level and new life, returning to the house whenever they are captured by Pac-Man. Also known as the *monster pen*.                                                                                                                                                                                                                                                     |
+| **ghosts:**       | Pac-Man's four enemies in the maze are typically referred to as *ghosts* or *monsters*.                                                                                                                                                                                                                                                                                                                                                               |
+| **grapes:**       | The bonus symbol for levels seven and eight. Also known as a *melon* or a *grenade*. Worth 1,000 points.                                                                                                                                                                                                                                                                                                                                              |
+| **grenade:**      | See **grapes**.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **head faking:**  | Changing Pac-Man's direction back and forth in quick succession in an attempt to affect the turning logic of one or more ghosts in play. Blinky and Clyde do not use Pac-Man's current direction in their chase logic, so they are unaffected by head faking.                                                                                                                                                                                         |
+| **Inky:**         | The blue ghost. Also known as “Aosuke” or “Mucky” in *Puck-Man*.                                                                                                                                                                                                                                                                                                                                                                                      |
+| **intersection:** | Anywhere pathways in the maze intersect, yielding more than one option on which way to proceed.                                                                                                                                                                                                                                                                                                                                                       |
+| **key:**          | The bonus symbol for levels 13 and above. Worth 5,000 points.                                                                                                                                                                                                                                                                                                                                                                                         |
+| **melon:**        | See **grapes**.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **monster pen:**  | See **ghost house**.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **monsters:**     | See **ghosts**.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **orange:**       | See **peach**.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **pattern:**      | A memorized series of turns associated with a particular level or levels that, when repeated, clears the maze of dots without getting Pac-Man captured by any of the ghosts. Also known as a *routine.*                                                                                                                                                                                                                                               |
+| **peach:**        | The bonus symbol for levels three and four. Also known as an *orange*. Worth 500 points.                                                                                                                                                                                                                                                                                                                                                              |
+| **pills:**        | See **dots**.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Pinky:**        | The pink ghost. Also known as “Micky” in *Puck-Man*.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **power pill:**   | See **energizer**.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **routine:**      | See **pattern**.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **side tunnel:**  | The connecting tunnel between the right and left edges of the screen. Entering this tunnel will “wrap” the player around to the other side of the screen. The monsters always suffer a speed penalty while in the tunnel while Pac-Man does not. Also known as *The Tube, The Time Warp, and The Scoot*.                                                                                                                                              |
+| **split screen:** | The 256th level of the game, where the right half of the screen is filled with garbage instead of the usual maze.                                                                                                                                                                                                                                                                                                                                     |
+| **strawberry:**   | The bonus symbol for level two. Worth 300 points.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **thunderbird:**  | See **galaxian**.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **tulip:**        | See **galaxian**.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 
 ## Frequently Asked Questions
 
-|  |  |
-| - | - |
-| **Q:** | **How do I get past the split screen?** |
-| **A:** | The only known way to get past the split screen is via the “rack test” feature available on some Pac-Man ROMs (see [Chapter 5](#chapter-5-deciphering-the-split-screen)). |
-|   |   |
-| **Q:** | **What is a “perfect score”?** |
-| **A:** | A perfect score in *Pac-Man* is 3,333,360 points, which can only be attained by playing a perfect game. This requires catching all four ghosts at every energizer, gobbling down every bonus fruit, and never once losing a life for 256 consectutive levels of play. All extra lives are needed once the split screen is reached to eat the nine dots hidden on the right side of the screen the maximum number of times—they respawn every time a life is lost. This was first achieved by Billy Mitchell of Hollywood, Florida in 1999. |
-|   |   |
-| **Q:** | **Is it true that some of the ghost A.I. routines examine the joystick directly to make decisions?** |
-| **A:** | This is false. The memory-mapped IN0 joystick port is completely removed from the pathfinding and logic routines in the code. |
-|   |   |
-| **Q:** | **What other games from the *Pac-Man* family will this ghost logic work with?** |
-| **A:** | *Pac-Man Plus* and *Ms. Pac-Man* both use the same basic pathfinding/targeting logic as the original *Pac-Man.* Many popular bootleg ROMs like the Atlantic City Chip and Hanglyman also use this logic. |
-|   |   |
-| **Q:** | **Where can I download a copy of the *Pac-Man* ROMs?** |
-| **A:** | The *Pac-Man* ROMs are under copyright to NAMCO Bandai, LTD and are their intellectual property. I cannot legally provide you with them, and I certainly cannot recommend that you go to [Google](http://www.google.com/) right away and search for “pacman puckman ROMs MAME32” because you would probably find them after a little searching. |
-|   |   |
-| **Q:** | **Why are all of the bonus symbols food-related except for the galaxian, the bell, and the key?** |
+|        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Q:** | **How do I get past the split screen?**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **A:** | The only known way to get past the split screen is via the “rack test” feature available on some Pac-Man ROMs (see [Chapter 5](#chapter-5-deciphering-the-split-screen)).                                                                                                                                                                                                                                                                                                                                                                        |
+|        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Q:** | **What is a “perfect score”?**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **A:** | A perfect score in *Pac-Man* is 3,333,360 points, which can only be attained by playing a perfect game. This requires catching all four ghosts at every energizer, gobbling down every bonus fruit, and never once losing a life for 256 consectutive levels of play. All extra lives are needed once the split screen is reached to eat the nine dots hidden on the right side of the screen the maximum number of times—they respawn every time a life is lost. This was first achieved by Billy Mitchell of Hollywood, Florida in 1999.       |
+|        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Q:** | **Is it true that some of the ghost A.I. routines examine the joystick directly to make decisions?**                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **A:** | This is false. The memory-mapped IN0 joystick port is completely removed from the pathfinding and logic routines in the code.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Q:** | **What other games from the *Pac-Man* family will this ghost logic work with?**                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **A:** | *Pac-Man Plus* and *Ms. Pac-Man* both use the same basic pathfinding/targeting logic as the original *Pac-Man.* Many popular bootleg ROMs like the Atlantic City Chip and Hanglyman also use this logic.                                                                                                                                                                                                                                                                                                                                         |
+|        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Q:** | **Where can I download a copy of the *Pac-Man* ROMs?**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| **A:** | The *Pac-Man* ROMs are under copyright to NAMCO Bandai, LTD and are their intellectual property. I cannot legally provide you with them, and I certainly cannot recommend that you go to [Google](http://www.google.com/) right away and search for “pacman puckman ROMs MAME32” because you would probably find them after a little searching.                                                                                                                                                                                                  |
+|        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Q:** | **Why are all of the bonus symbols food-related except for the galaxian, the bell, and the key?**                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | **A:** | The galaxian was added as a nod to the Namco space-shooter title, *Galaxian,* which was under development at the same time as *Pac-Man*. No one knows why Toru Iwatani chose a bell and a key for the final two bonus symbols. It has been theorized the bell may actually be some sort of food like an Asian cashew or even a blancmange dessert, which would make it consistent with the food theme. The bell at least has the *possibility* of being something else—no one has any theories on the key being anything but ... well ... a key. |
-|   |   |
-| **Q:** | **Why are some members of the NAMCO development team listed by name but not others in Chapter 1?** |
-| **A:** | I have not been able to find out these persons' names—I'm sure they are documented somewhere but I have yet to find that information. If you know of any reliable sources for the names of the full NAMCO development team, please let me know ([jamey.pittman@yahoo.com](mailto:jamey.pittman@yahoo.com)). |
-|   |   |
-| **Q:** | **Where can I download the MAME emulator?** |
-| **A:** | Click [here](http://mamedev.org/) for the MAME website. |
+|        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Q:** | **Why are some members of the NAMCO development team listed by name but not others in Chapter 1?**                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **A:** | I have not been able to find out these persons' names—I'm sure they are documented somewhere but I have yet to find that information. If you know of any reliable sources for the names of the full NAMCO development team, please let me know ([jamey.pittman@yahoo.com](mailto:jamey.pittman@yahoo.com)).                                                                                                                                                                                                                                      |
+|        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Q:** | **Where can I download the MAME emulator?**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **A:** | Click [here](http://mamedev.org/) for the MAME website.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 
 ## About the Author

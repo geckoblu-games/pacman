@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Pacman is a Go desktop application built with Ebitengine v2.8.8. The current implementation establishes the application entry point, embeds and loads visual assets, and renders the maze at a fixed logical resolution. The game loop is wired up, but gameplay systems such as player movement, ghosts, collisions, scoring, pellets, and input handling are not implemented yet.
+Pacman is a Go desktop application built with Ebitengine v2.8.8. It renders the maze at a fixed logical resolution and owns a renderer-independent game state with match lifecycle, scoring, lives, level progression, and collectible tracking. Player movement, ghosts, collisions, and audio are not implemented yet.
 
 ## Project Structure
 
@@ -23,8 +23,14 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. The current imp
 |   `-- PressStart2P-Regular.ttf
 |-- game/
 |   |-- game.go
+|   |-- game_test.go
+|   |-- sceneplay.go
+|   |-- state.go
+|   |-- state_test.go
+|   |-- level.go
+|   |-- level_test.go
 |   |-- constants.go
-|   `-- debug.go
+|   `-- constsantsmaze.go
 `-- doc/
     |-- PROJECT IMPLEMENTATION REFERENCE.md
     |-- ReferenceMap.png
@@ -40,29 +46,33 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. The current imp
 
 ### `game/`
 
-- `game.go` owns the Ebitengine `Game` implementation and implements the `Update`, `Draw`, and `Layout` callbacks. It stores an `assets.GameImages` bundle and draws its loaded images.
-- `constants.go` defines logical display/grid dimensions, scale and debug switches, plus the reference map's allowed-path cell coordinates.
-- `debug.go` creates and draws cached debug overlays for allowed-path cells and the grid.
+- `game.go` owns the Ebitengine `Game` implementation and session state. Its `Update` and `Draw` callbacks delegate to its `ScenePlay`, while `Layout` returns the logical dimensions. `game_test.go` verifies bottom-HUD geometry, bonus sprite loading, shared state, and delegation of updates and rendering.
+- `sceneplay.go` defines `ScenePlay`, which holds a pointer to `Game.State`, the `assets.GameImages` bundle, and the HUD font face. It handles input and match flow in `Update`, composes the screen in `Draw`, and owns all drawing helpers, including debug overlays and their lazy caches.
+- `state.go` defines the pure Go session and match state and their transitions, using `LevelState`; `state_test.go` tests them without initializing Ebitengine.
+- `level.go` contains level-specific types, data, and behavior: `LevelState`, `LevelParameters`, `NewLevelState`, bonus-symbol history, collectible consumption, the private level parameter table, `ParametersForLevel`, and the base speed. Its code has no rendering dependencies. `LevelState.ConsumeCollectible` updates presence flags and the remaining count and returns 10 or 50 points, or zero when nothing is consumed. Match phase checks, score updates, and the transition to `PhaseLevelComplete` remain in `GameState`.
+- `level_test.go` verifies collectible initialization and idempotence and compares all level parameter rows with the dossier.
+- `constants.go` defines logical display/grid dimensions, scale and debug switches.
+- `constsantsmaze.go` defines the maze coordinate arrays: `AllowedPath`, `EnergizerCoords`, and `CoinCoords`.
 
 ### `assets/`
 
 - `assets.go` embeds PNG and TTF files at build time and exposes helpers to read bytes, decode and crop PNG images, load the window icon sizes, and construct the `GameImages` bundle.
-- `classic-tileset.png` is the sprite atlas used for the energizer image. `LoadGameImages` crops the configured 26 x 26 atlas cell and converts it, along with the wall layer, into Ebitengine images. It also creates one reusable 4 x 4 px coin image in RGB (255, 181, 148). The expected wall dimensions are validated during loading.
+- `classic-tileset.png` is the sprite atlas used for energizers, reserve lives, and all eight bonus symbols. `LoadGameImages` crops 26 x 26 atlas cells and converts them into reusable Ebitengine images. Bonus sprites are selected by the exact `BonusSymbol` names used in the level table, from row 6, columns 0 through 7: Cherries, Strawberry, Peach, Apple, Grapes, Galaxian, Bell, and Key. All sprites are loaded during initialization, not while drawing.
 - `walls.png` is the transparent maze-wall layer used by the game. It is expected to match the logical screen dimensions exactly. Its documented preparation preserves blue wall pixels from the reference map and restores wall segments obscured by the grid; transparent areas include the ghost-house doorway.
 - The four `icon_*.png` files provide window-manager icon choices at multiple sizes.
 - `PressStart2P-Regular.ttf` is embedded and loaded once for the top-center `HIGH SCORE` label.
 
 ### `doc/`
 
-This directory contains source/reference material: the reference map image, a wall-tile sketch PDF, and a local copy of The Pac-Man Dossier. They are not read by the runtime; the runtime maze is `assets/walls.png` and the path coordinates are compiled into `game/constants.go`.
+This directory contains source/reference material: the reference map image, a wall-tile sketch PDF, and a local copy of The Pac-Man Dossier. They are not read by the runtime; the runtime maze is `assets/walls.png` and the path coordinates are compiled into `game/constsantsmaze.go`.
 
 ## Runtime and Rendering Flow
 
 1. `main` derives the initial window size by multiplying `ScreenWidth` and `ScreenHeight` by `ScreenScale` and rounding each dimension to an integer.
 2. It configures the title and loads all four window icons through the `assets` package.
-3. `game.New` calls `assets.LoadGameImages` with the expected logical screen size. The loader validates `walls.png`, crops the energizer from `classic-tileset.png`, and returns both as Ebitengine images. A missing, undecodable, or incorrectly sized image prevents startup with an error.
-4. `ebiten.RunGame` invokes the game callbacks. `Update` currently returns immediately, so there is no simulation state or input processing.
-5. `Draw` composes layers in this order: optional allowed-path background, permanent maze walls, coins, energizers, optional dashed grid, then the white `1 UP` and `HIGH SCORE` labels. Both labels use Press Start 2P at the same top offset; `1 UP` begins at column 3 and `HIGH SCORE` at column 9. Coin positions come from `CoinCoords` and are rendered centered in their grid cells; they are visual-only and are not yet collectible. Debug images are generated lazily by `game` and cached in the `assets.GameImages` bundle. Both debug flags are currently enabled.
+3. `game.New` creates `ScenePlay` with a pointer to its session state. The scene calls `assets.LoadGameImages` with the expected logical screen size and loads the HUD font. The image loader validates `walls.png`, crops the energizer from `classic-tileset.png`, and returns both as Ebitengine images. A missing, undecodable, or incorrectly sized image prevents startup with an error.
+4. `game.New` also starts a match in `PhaseReady`. `Game.Update` delegates to `ScenePlay.Update`, which advances a completed level to the next level's ready phase. Enter starts play from ready or starts a fresh match and play after game over. There is no countdown, death animation, or level-transition animation yet.
+5. `Draw` composes layers in this order: optional allowed-path background, permanent maze walls, remaining coins and energizers, optional dashed grid, then the white `1UP` and `HIGH SCORE` labels and their numeric scores. Both labels use Press Start 2P at the same top offset; `1UP` begins at column 3 and `HIGH SCORE` at column 9. Scores appear one grid row below the labels. The current score is right-aligned to the right edge of zero-based column 6 (x = 112); the high score is right-aligned to the right edge of column 16 (x = 272). Collectible positions come from `CoinCoords` and `EnergizerCoords`; their visibility comes from the current level state. Debug images are generated lazily and cached. No actor currently consumes collectibles during play.
 6. `Layout` always returns the logical dimensions. Ebitengine scales that fixed-resolution image to the window; resizing does not change the game's grid or logical coordinates.
 
 ## Implementation Decisions
@@ -77,7 +87,7 @@ The display is represented as a 28-column by 36-row grid with 16 logical pixels 
 
 The `assets` package uses `embed.FS` with `//go:embed *.png *.ttf`, so runtime assets are shipped in the executable rather than loaded from external paths. `ReadFile` adds filename context to read errors. `LoadImage` decodes PNG bytes without changing pixel dimensions or colors and adds context to decode errors. `LoadWindowIcons` requests all expected icon sizes in order and fails if any one is unavailable or invalid.
 
-`assets.LoadGameImages` loads and validates the permanent wall layer, crops the energizer sprite from the atlas, and creates the reusable coin image once during construction. `assets.LoadTextFace` parses the embedded Press Start 2P font when `game.New` initializes. `game.Game` retains the image bundle and font face; no asset file access or font parsing occurs in the frame loop.
+`assets.LoadGameImages` loads and validates the permanent wall layer, crops the energizer sprite from the atlas, and creates the reusable coin image once during construction. `assets.LoadTextFace` parses the embedded Press Start 2P font when `game.New` initializes its scene. `ScenePlay` retains the image bundle and font face; no asset file access or font parsing occurs in the frame loop.
 
 ### Debug overlays
 
@@ -91,11 +101,36 @@ The overlays are composed around, rather than baked into, the permanent wall ima
 
 ## Current Scope and Extension Points
 
-The implemented application is currently a rendering foundation: it opens a window and displays the maze, static coin and energizer sprites, map-debug overlays, and the `1 UP` and `HIGH SCORE` labels. The coins are not yet collectible. There is no player/ghost model, tile collision graph, movement or turn logic, input mapping, collectible state, scoring, lives, level state, or audio in the current code.
+### Game state and lifecycle
+
+`Game.State` owns a `GameState`. Its zero value has `PhaseWaiting` and no match. `HighScore` belongs to this application session and is neither persisted nor reset by a new match. `MatchState` contains score, total remaining lives (including the current life), and a `LevelState`. The level contains its one-based number, a `LevelParameters` value, presence flags for all 240 coins and 4 energizers, and their remaining count.
+
+- `StartNewMatch` creates level 1 with score 0 and 3 lives in `PhaseReady`, preserving the session record.
+- `BeginPlaying` transitions from ready to playing. There is no automatic countdown yet.
+- `AddScore` accepts positive points only during play and updates the session record immediately. Bonus lives and score overflow rules are not implemented.
+- `ConsumeCollectible` accepts a tile coordinate during play, removes it exactly once, and awards 10 points for a coin or 50 for an energizer. The final collectible sets `PhaseLevelComplete`. Fruit is not part of level completion. Energizer frightened behavior is not implemented.
+- `AdvanceLevel` only accepts a completed level, increments its number, loads the corresponding parameters, restores all collectibles, and returns to ready, preserving score and lives. Movement using these parameters and special late-level behavior are not implemented.
+- `LoseLife` only accepts active play, decrements lives, and returns to ready or enters `PhaseGameOver` at zero lives. Score and the entire current level, including consumed collectibles, are preserved. Actor/timer respawn resets will be added with those systems, separately from level initialization.
+
+The game-over result remains available until a new match starts. State methods are independent of assets, rendering, wall-clock time, and Ebitengine. Fields are exposed for rendering; callers should use transition methods to mutate gameplay state.
+
+### Level parameters
+
+`levelParameters` in `game/level.go` encodes all 21 rows of Table A.1 in source-column order. Go arrays cannot be constants, so this package-private table is treated as read-only. `NewLevelState` selects the appropriate row through `ParametersForLevel` and copies it into `LevelState.Parameters`. Levels 21 and above share the final row while retaining their actual level number; level numbers below 1 are invalid and rejected with a panic. New matches and level advancement load parameters automatically; losing a life preserves them.
+
+`LevelParameters` retains every column: bonus symbol and points; Pac-Man normal and dot-eating speeds; ghost normal and tunnel speeds; both Elroy dot thresholds and speeds; frightened Pac-Man, dot-eating and ghost speeds; frightened duration and flash count. Speed fields are integer percentages, not pixel velocities. Dot-eating percentages retain the source's rounded approximations (71, 79, 83, and 87). `BaseSpeedPixelsPerSecond` stores the source's canonical 100% speed, 75.75757625 pixels/second, measured at the original 8-pixel tile scale; future movement must account for the renderer's 16-pixel cells.
+
+Source dashes are encoded as zero for all five frightened fields. This disables vulnerability on levels 17, 19, 20, and 21+, while level 18 retains its one-second window and three flashes, matching the authoritative table rather than the prose summary. The table is loaded now, including unused parameters; actor movement, fruit, frightened behavior, and Elroy logic are not implemented by this change. Frightened durations remain in seconds until the future simulation converts them to fixed ticks.
+
+The lives HUD displays reserve lives (`Lives - 1`, excluding the active life) centered on the penultimate grid row (zero-based row 34) with an additional half-row downward offset (8 logical pixels). Icons are centered on zero-based columns 3 and 5 from the left with a half-column leftward offset (8 logical pixels) for a new three-life match; further reserve lives would continue every two columns. The image is loaded once from `classic-tileset.png`, using the 26 x 26 sprite at row 0, column 4 (source x = 4, y = 0). No icons are drawn without a match or when there are no reserve lives.
+
+`LevelState.BonusSymbols()` derives up to seven symbols in current-to-oldest order from the current level and the level parameter table. No mutable history is needed for sequential progression. The renderer places the current symbol on the far right, mirrored from the leftmost reserve-life icon, with previous levels spaced two columns to the left. For 26 x 26 sprites the current symbol's top-left is (387, 547), while the first reserve life is at (35, 547). Advancing inserts the new symbol on the right and shifts the previous six left; repeated symbols are not deduplicated. Losing lives preserves the strip and a new match resets it to one cherry. The counter is independent of fruit consumption, never exceeds seven icons, and does not emulate the level-256 overflow bug.
+
+The application displays the maze, state-driven collectible sprites, map-debug overlays, score labels and values, reserve-life icons, and the fruit/level history strip. There is no player/ghost model, tile collision graph, movement or turn logic, collectible fruit actor, or audio in the current code.
 
 Natural ownership boundaries for future work are:
 
-- Add simulation state and update behavior to `game.Game` or to types owned by the `game` package; keep `Update` responsible for advancing it.
+- Extend the existing logical state with actors and timers; keep `Update` responsible for advancing it and `Draw` read-only with respect to simulation state.
 - Add input handling in the game update path and render actors/pellets in `Draw` with an explicit layer order.
 - Use the grid and `AllowedPath` as reference data, but validate or replace the latter with a gameplay-oriented maze representation before using it as authoritative collision data.
 - Extend the existing HUD labels and use the loaded font when additional score, lives, or level text is implemented.
@@ -109,4 +144,10 @@ go run .
 go build -o pacman .
 ```
 
-`go test ./...` currently compiles all packages successfully, but reports that there are no test files. Therefore this check verifies compilation only, not rendering behavior or gameplay correctness.
+The state tests cover new-match initialization, session record retention, life loss and game over, collectible idempotence, level completion and progression, and rejected operations outside active play. They also compare all 21 parameter rows directly with the local dossier and verify parameter loading through progression, new-match reset, and the 21+ fallback without mutating the shared table. Bonus-strip tests cover current-first ordering, duplicated symbols, the seven-icon limit, insertion and shifting on advancement, preservation after death, and reset on a new match. The dossier is read only by tests, not by the runtime. State tests can run without a display or Ebitengine initialization:
+
+```sh
+go test game/state.go game/constants.go game/constsantsmaze.go game/level.go game/state_test.go game/level_test.go
+```
+
+`go test ./...` also tests bottom-HUD symmetry, spacing, screen bounds, and loading of every bonus sprite, and compiles the graphics integration. It requires Ebitengine's native dependencies and a display on Linux (or a virtual display such as `xvfb-run -a go test ./...`). Actual window rendering and actor gameplay are not covered by these tests.

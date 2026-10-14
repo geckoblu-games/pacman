@@ -1,99 +1,37 @@
 // Package game implements the Ebitengine game loop and tile-based rendering.
 package game
 
-import (
-	"image"
-	"image/color"
+import "github.com/hajimehoshi/ebiten/v2"
 
-	"pacman-ai/assets"
-
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/text/v2"
-)
-
-const (
-	highScoreFontSize = 14
-	highScoreColumn   = 9
-	oneUpColumn       = 3
-	highScoreTop      = 2
-)
-
-// Game owns the loaded images and lazily initializes debug layers.
-// Use New to initialize the wall image before passing a Game to Ebitengine.
+// Game owns the session state and delegates updates and rendering to ScenePlay.
+// Use New to initialize the scene before passing a Game to Ebitengine.
 type Game struct {
-	images        assets.GameImages
-	highScoreFace *text.GoTextFace
+	// State contains the session record and current match shared with the scene.
+	State GameState
+	// scenePlay handles input, frame updates, and rendering.
+	scenePlay *ScenePlay
 }
 
-// New loads the transparent wall layer once and validates its size for 1:1 rendering.
-// walls.png preserves every blue pixel from doc/ReferenceMap.png and restores
-// grid-covered pixels where neighboring blue segments continue across the gap.
-// All other pixels remain transparent, including the ghost-house doorway.
-// Extracting only blue pixels from the reference would discard these repairs.
+// New loads the play scene's assets and starts a fresh match in the ready phase.
 func New() (*Game, error) {
-	images, err := assets.LoadGameImages(image.Pt(ScreenWidth, ScreenHeight))
+	game := &Game{}
+	scene, err := newScenePlay(&game.State)
 	if err != nil {
 		return nil, err
 	}
-	highScoreFace, err := assets.LoadTextFace("PressStart2P-Regular.ttf", highScoreFontSize)
-	if err != nil {
-		return nil, err
-	}
-	return &Game{images: images, highScoreFace: highScoreFace}, nil
+	game.scenePlay = scene
+	game.State.StartNewMatch()
+	return game, nil
 }
 
-// Update runs once per simulation tick; gameplay state updates are not implemented yet.
+// Update delegates each simulation tick and its input handling to the play scene.
 func (game *Game) Update() error {
-	return nil
+	return game.scenePlay.Update()
 }
 
-// Draw composes the maze and enabled debug layers in logical screen coordinates.
+// Draw delegates rendering of the current frame to the play scene.
 func (game *Game) Draw(screen *ebiten.Image) {
-	// Debug path backgrounds go below the permanent walls; the debug grid goes above.
-	// Each debug layer is independently controlled by its flag in constants.go.
-	if DebugAllowedPathEnabled {
-		game.drawDebugAllowedPath(screen)
-	}
-	screen.DrawImage(game.images.Walls, nil)
-	game.drawCoins(screen)
-	game.drawEnergizers(screen)
-	if DebugGridEnabled {
-		if game.images.DebugGrid == nil {
-			game.images.DebugGrid = newDebugGrid()
-		}
-		screen.DrawImage(game.images.DebugGrid, nil)
-	}
-	game.drawTopLabel(screen, "1UP", oneUpColumn)
-	game.drawTopLabel(screen, "HIGH SCORE", highScoreColumn)
-}
-
-func (game *Game) drawCoins(screen *ebiten.Image) {
-	coinSize := game.images.Coin.Bounds().Size()
-	for _, coord := range CoinCoords {
-		op := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
-		x := float64(coord[0]*CellSize) + (float64(CellSize)-float64(coinSize.X))/2
-		y := float64(coord[1]*CellSize) + (float64(CellSize)-float64(coinSize.Y))/2
-		op.GeoM.Translate(x, y)
-		screen.DrawImage(game.images.Coin, op)
-	}
-}
-
-func (game *Game) drawEnergizers(screen *ebiten.Image) {
-	spriteSize := game.images.Energizer.Bounds().Size()
-	for _, coord := range EnergizerCoords {
-		op := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
-		x := float64(coord[0]*CellSize) + (float64(CellSize)-float64(spriteSize.X))/2
-		y := float64(coord[1]*CellSize) + (float64(CellSize)-float64(spriteSize.Y))/2
-		op.GeoM.Translate(x, y)
-		screen.DrawImage(game.images.Energizer, op)
-	}
-}
-
-func (game *Game) drawTopLabel(screen *ebiten.Image, label string, column int) {
-	op := &text.DrawOptions{}
-	op.GeoM.Translate(float64(column*CellSize), highScoreTop)
-	op.ColorScale.ScaleWithColor(color.White)
-	text.Draw(screen, label, game.highScoreFace, op)
+	game.scenePlay.Draw(screen)
 }
 
 // Layout keeps the internal resolution fixed, regardless of the window's dimensions.
