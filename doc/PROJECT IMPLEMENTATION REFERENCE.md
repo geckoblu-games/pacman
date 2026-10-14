@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Pacman is a Go desktop application built with Ebitengine v2.8.8. It renders the maze at a fixed logical resolution and owns a renderer-independent game state with match lifecycle, scoring, lives, level progression, and collectible tracking. Player movement, ghosts, collisions, and audio are not implemented yet.
+Pacman is a Go desktop application built with Ebitengine v2.8.8. It renders the maze at a fixed logical resolution and owns a renderer-independent game state with match lifecycle, scoring, lives, level progression, collectible tracking and consumption, and Pac-Man movement. Ghosts, player-ghost collisions, and audio are not implemented yet.
 
 ## Project Structure
 
@@ -24,7 +24,10 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. It renders the 
 |-- game/
 |   |-- game.go
 |   |-- game_test.go
+|   |-- pacman.go
+|   |-- pacman_test.go
 |   |-- sceneplay.go
+|   |-- spritepacman.go
 |   |-- state.go
 |   |-- state_test.go
 |   |-- level.go
@@ -46,18 +49,21 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. It renders the 
 
 ### `game/`
 
-- `game.go` owns the Ebitengine `Game` implementation and session state. Its `Update` and `Draw` callbacks delegate to its `ScenePlay`, while `Layout` returns the logical dimensions. `game_test.go` verifies bottom-HUD geometry, bonus sprite loading, shared state, and delegation of updates and rendering.
-- `sceneplay.go` defines `ScenePlay`, which holds a pointer to `Game.State`, the `assets.GameImages` bundle, and the HUD font face. It handles input and match flow in `Update`, composes the screen in `Draw`, and owns all drawing helpers, including debug overlays and their lazy caches.
+- `game.go` owns the Ebitengine `Game` implementation and session state. Its `Update` and `Draw` callbacks delegate to its `ScenePlay`, while `Layout` returns the logical dimensions. `game_test.go` verifies the AllowedPath matrix, bottom-HUD geometry, bonus sprite loading, shared state, and delegation of updates and rendering.
+- `sceneplay.go` defines `ScenePlay`, which holds a pointer to `Game.State`, the `assets.GameImages` bundle, the HUD font face, and the Pac-Man sprite. It maps arrow/WASD input to a requested direction, advances the player during active play, composes the screen in `Draw`, and owns all drawing helpers, including debug overlays and their lazy caches.
+- `pacman.go` defines renderer-independent player position, direction, speed conversion, buffered tile turns, immediate reversal on opposite input, early/late diagonal cornering, wall blocking, continuous side-tunnel traversal, and the deterministic mouth-animation cycle. Tunnel coordinates pass beyond one screen edge before wrapping while preserving the remaining movement distance.
+- `pacman_test.go` checks level-speed movement, corridor reversal, buffered turns, early and late diagonal cornering, wall blocking, respawn positioning, and the mouth-animation cycle without initializing Ebitengine.
+- `spritepacman.go` draws the selected directional atlas frame at the simulation position and repeats it across the opposite screen edge when the sprite is clipped by a tunnel boundary; a stopped Pac-Man keeps the half-open frame for the last direction.
 - `state.go` defines the pure Go session and match state and their transitions, using `LevelState`; `state_test.go` tests them without initializing Ebitengine.
 - `level.go` contains level-specific types, data, and behavior: `LevelState`, `LevelParameters`, `NewLevelState`, bonus-symbol history, collectible consumption, the private level parameter table, `ParametersForLevel`, and the base speed. Its code has no rendering dependencies. `LevelState.ConsumeCollectible` updates presence flags and the remaining count and returns 10 or 50 points, or zero when nothing is consumed. Match phase checks, score updates, and the transition to `PhaseLevelComplete` remain in `GameState`.
 - `level_test.go` verifies collectible initialization and idempotence and compares all level parameter rows with the dossier.
 - `constants.go` defines logical display/grid dimensions, scale and debug switches.
-- `constsantsmaze.go` defines the maze coordinate arrays: `AllowedPath`, `EnergizerCoords`, and `CoinCoords`.
+- `constsantsmaze.go` defines `AllowedPath` as a `[GridRows][GridColumns]bool` matrix indexed `[row][column]`, plus the `EnergizerCoords` and `CoinCoords` coordinate arrays.
 
 ### `assets/`
 
 - `assets.go` embeds PNG and TTF files at build time and exposes helpers to read bytes, decode and crop PNG images, load the window icon sizes, and construct the `GameImages` bundle.
-- `classic-tileset.png` is the sprite atlas used for energizers, reserve lives, and all eight bonus symbols. `LoadGameImages` crops 26 x 26 atlas cells and converts them into reusable Ebitengine images. Bonus sprites are selected by the exact `BonusSymbol` names used in the level table, from row 6, columns 0 through 7: Cherries, Strawberry, Peach, Apple, Grapes, Galaxian, Bell, and Key. All sprites are loaded during initialization, not while drawing.
+- `classic-tileset.png` is the sprite atlas used for Pac-Man, energizers, reserve lives, and all eight bonus symbols. `LoadGameImages` crops the first nine 26 x 26 cells as Pac-Man animation frames. Their order is up half/wide, down half/wide, left half/wide, right half/wide, then shared closed-mouth. Bonus sprites are selected by the exact `BonusSymbol` names used in the level table, from row 6, columns 0 through 7: Cherries, Strawberry, Peach, Apple, Grapes, Galaxian, Bell, and Key. All sprites are loaded during initialization, not while drawing.
 - `walls.png` is the transparent maze-wall layer used by the game. It is expected to match the logical screen dimensions exactly. Its documented preparation preserves blue wall pixels from the reference map and restores wall segments obscured by the grid; transparent areas include the ghost-house doorway.
 - The four `icon_*.png` files provide window-manager icon choices at multiple sizes.
 - `PressStart2P-Regular.ttf` is embedded and loaded once for the top-center `HIGH SCORE` label.
@@ -71,8 +77,8 @@ This directory contains source/reference material: the reference map image, a wa
 1. `main` derives the initial window size by multiplying `ScreenWidth` and `ScreenHeight` by `ScreenScale` and rounding each dimension to an integer.
 2. It configures the title and loads all four window icons through the `assets` package.
 3. `game.New` creates `ScenePlay` with a pointer to its session state. The scene calls `assets.LoadGameImages` with the expected logical screen size and loads the HUD font. The image loader validates `walls.png`, crops the energizer from `classic-tileset.png`, and returns both as Ebitengine images. A missing, undecodable, or incorrectly sized image prevents startup with an error.
-4. `game.New` also starts a match in `PhaseReady`. `Game.Update` delegates to `ScenePlay.Update`, which advances a completed level to the next level's ready phase. Enter starts play from ready or starts a fresh match and play after game over. There is no countdown, death animation, or level-transition animation yet.
-5. `Draw` composes layers in this order: optional allowed-path background, permanent maze walls, remaining coins and energizers, optional dashed grid, then the white `1UP` and `HIGH SCORE` labels and their numeric scores. Both labels use Press Start 2P at the same top offset; `1UP` begins at column 3 and `HIGH SCORE` at column 9. Scores appear one grid row below the labels. The current score is right-aligned to the right edge of zero-based column 6 (x = 112); the high score is right-aligned to the right edge of column 16 (x = 272). Collectible positions come from `CoinCoords` and `EnergizerCoords`; their visibility comes from the current level state. Debug images are generated lazily and cached. No actor currently consumes collectibles during play.
+4. `game.New` starts a match and immediately enters `PhasePlaying`, so gameplay begins without a key press. `Game.Update` delegates to `ScenePlay.Update`, which advances a completed level to the next level's ready phase. Enter resumes play after a life loss or starts a fresh match after game over. During active play, arrow keys or WASD move Pac-Man at the configured level speed with buffered cornering. Entering a tile with a remaining coin or energizer removes it, awards its points, and pauses Pac-Man for one or three ticks respectively. There is no countdown, death animation, or level-transition animation yet.
+5. `Draw` composes layers in this order: optional allowed-path background, permanent maze walls, remaining coins and energizers, Pac-Man's sprite when a match exists, optional dashed grid, then the white `1UP` and `HIGH SCORE` labels and their numeric scores. Both labels use Press Start 2P at the same top offset; `1UP` begins at column 3 and `HIGH SCORE` at column 9. Scores appear one grid row below the labels. The current score is right-aligned to the right edge of zero-based column 6 (x = 112); the high score is right-aligned to the right edge of column 16 (x = 272). Collectible positions come from `CoinCoords` and `EnergizerCoords`; their visibility comes from the current level state. Debug images are generated lazily and cached. Pac-Man consumes the collectible in his occupied tile during `Update`; drawing remains read-only.
 6. `Layout` always returns the logical dimensions. Ebitengine scales that fixed-resolution image to the window; resizing does not change the game's grid or logical coordinates.
 
 ## Implementation Decisions
@@ -93,8 +99,8 @@ The `assets` package uses `embed.FS` with `//go:embed *.png *.ttf`, so runtime a
 
 `DebugAllowedPathEnabled` and `DebugGridEnabled` control independent overlays and are both true in the current configuration.
 
-- `AllowedPath` contains 300 zero-based `{column, row}` pairs extracted from the reference map. It includes tunnel and energizer cells while excluding walls, HUD regions, and the black ghost-house interior. The array is a variable because Go does not support constant arrays; code treats it as read-only.
-- The allowed-path overlay paints each listed 16 x 16 cell in opaque RGB (79, 79, 79). It is created lazily on first use and then cached in `GameImages`. Its cached pixels assume `AllowedPath` remains unchanged.
+- `AllowedPath` is a 36-row by 28-column boolean matrix extracted from the reference map, with `true` for each of 300 traversable cells. It includes tunnel and energizer cells while excluding walls, HUD regions, and the black ghost-house interior. Movement checks use direct `[row][column]` indexing with bounds validation; the matrix is treated as read-only.
+- The allowed-path overlay paints each `true` matrix cell as a 16 x 16 block in opaque RGB (79, 79, 79). It is created lazily on first use and then cached in `GameImages`. Its cached pixels assume `AllowedPath` remains unchanged.
 - The grid overlay is a translucent gray image generated lazily on first use and cached in `GameImages`. Both horizontal and vertical lines use equal dash and gap lengths controlled by `DebugGridDashSize`. The outer right and bottom lines are clamped to the last drawable pixel to stay within image bounds. The dash size must be positive; its current value is one logical pixel.
 
 The overlays are composed around, rather than baked into, the permanent wall image. The path layer is drawn before the walls and the grid after them, allowing the grid to remain visible over the maze.
@@ -126,13 +132,13 @@ The lives HUD displays reserve lives (`Lives - 1`, excluding the active life) ce
 
 `LevelState.BonusSymbols()` derives up to seven symbols in current-to-oldest order from the current level and the level parameter table. No mutable history is needed for sequential progression. The renderer places the current symbol on the far right, mirrored from the leftmost reserve-life icon, with previous levels spaced two columns to the left. For 26 x 26 sprites the current symbol's top-left is (387, 547), while the first reserve life is at (35, 547). Advancing inserts the new symbol on the right and shifts the previous six left; repeated symbols are not deduplicated. Losing lives preserves the strip and a new match resets it to one cherry. The counter is independent of fruit consumption, never exceeds seven icons, and does not emulate the level-256 overflow bug.
 
-The application displays the maze, state-driven collectible sprites, map-debug overlays, score labels and values, reserve-life icons, and the fruit/level history strip. There is no player/ghost model, tile collision graph, movement or turn logic, collectible fruit actor, or audio in the current code.
+The application displays the maze, state-driven collectible sprites, Pac-Man's moving sprite, map-debug overlays, score labels and values, reserve-life icons, and the fruit/level history strip. Pac-Man consumes coins and energizers on entering their occupied tiles, awards the configured points, and pauses for one or three simulation ticks respectively. There is no ghost model, player-ghost collision handling, collectible fruit actor, or audio in the current code.
 
 Natural ownership boundaries for future work are:
 
-- Extend the existing logical state with actors and timers; keep `Update` responsible for advancing it and `Draw` read-only with respect to simulation state.
-- Add input handling in the game update path and render actors/pellets in `Draw` with an explicit layer order.
-- Use the grid and `AllowedPath` as reference data, but validate or replace the latter with a gameplay-oriented maze representation before using it as authoritative collision data.
+- Extend the existing logical state with actors and timers; keep `Update` responsible for advancing it and `Draw` read-only with respect to simulation state. Pac-Man moves through `AllowedPath` cells at the level's configured speed, buffers cardinal turns with arcade cornering, wraps across the side tunnel, consumes dots once, and observes the dossier's eating pauses. Ghosts and player-ghost collision handling are not implemented.
+- Expand player controls and render additional actors/pellets in `Draw` with an explicit layer order.
+- Use `AllowedPath` as the authoritative, validated movement grid; the boolean matrix is shared by movement checks and the debug overlay.
 - Extend the existing HUD labels and use the loaded font when additional score, lives, or level text is implemented.
 
 ## Build and Verification

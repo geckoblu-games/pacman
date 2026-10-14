@@ -16,7 +16,7 @@ func main() {
 	windowWidth := int(math.Round(float64(game.ScreenWidth) * game.ScreenScale))
 	windowHeight := int(math.Round(float64(game.ScreenHeight) * game.ScreenScale))
 	ebiten.SetWindowSize(windowWidth, windowHeight)
-	ebiten.SetWindowTitle("Pacman")
+	ebiten.SetWindowTitle("Pac-Man")
 
 	icons, err := assets.LoadWindowIcons()
 	if err != nil {

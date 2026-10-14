@@ -35,6 +35,8 @@ type ScenePlay struct {
 	images assets.GameImages
 	// highScoreFace is the reusable font face for HUD labels and scores.
 	highScoreFace *text.GoTextFace
+	// pacMan is the player's idle sprite drawn over the maze collectibles.
+	pacMan *pacManSprite
 }
 
 // newScenePlay loads rendering resources and binds the scene to the shared state.
@@ -47,7 +49,12 @@ func newScenePlay(state *GameState) (*ScenePlay, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ScenePlay{State: state, images: images, highScoreFace: highScoreFace}, nil
+	return &ScenePlay{
+		State:         state,
+		images:        images,
+		highScoreFace: highScoreFace,
+		pacMan:        newPacManSprite(images.PacManFrames),
+	}, nil
 }
 
 // Update advances completed levels and handles Enter to start or resume play.
@@ -61,10 +68,41 @@ func (scene *ScenePlay) Update() error {
 		}
 		scene.State.BeginPlaying()
 	}
+	if scene.State.Phase == PhasePlaying && scene.State.Match != nil {
+		scene.updatePacMan(scene.pacManDirection())
+	}
 	return nil
 }
 
-// Draw composes debug backgrounds, walls, collectibles, the grid, and the HUD.
+// updatePacMan advances the player, consumes the occupied tile, and honors eating pauses.
+func (scene *ScenePlay) updatePacMan(requested Direction) {
+	player := &scene.State.Match.PacMan
+	if player.EatingPauseTicks > 0 {
+		player.EatingPauseTicks--
+		return
+	}
+	player.Update(requested, scene.State.Match.Level)
+	column, row := player.OccupiedTile()
+	scene.State.ConsumeCollectible(column, row)
+}
+
+// pacManDirection maps held arrow or WASD keys to one buffered cardinal direction.
+func (scene *ScenePlay) pacManDirection() Direction {
+	switch {
+	case ebiten.IsKeyPressed(ebiten.KeyUp), ebiten.IsKeyPressed(ebiten.KeyW):
+		return DirectionUp
+	case ebiten.IsKeyPressed(ebiten.KeyLeft), ebiten.IsKeyPressed(ebiten.KeyA):
+		return DirectionLeft
+	case ebiten.IsKeyPressed(ebiten.KeyDown), ebiten.IsKeyPressed(ebiten.KeyS):
+		return DirectionDown
+	case ebiten.IsKeyPressed(ebiten.KeyRight), ebiten.IsKeyPressed(ebiten.KeyD):
+		return DirectionRight
+	default:
+		return DirectionNone
+	}
+}
+
+// Draw composes debug backgrounds, walls, collectibles, Pac-Man, the grid, and the HUD.
 func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	if DebugAllowedPathEnabled {
 		scene.drawDebugAllowedPath(screen)
@@ -72,6 +110,9 @@ func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	screen.DrawImage(scene.images.Walls, nil)
 	scene.drawCoins(screen)
 	scene.drawEnergizers(screen)
+	if scene.State.Match != nil {
+		scene.pacMan.Draw(screen, scene.State.Match.PacMan)
+	}
 	if DebugGridEnabled {
 		if scene.images.DebugGrid == nil {
 			scene.images.DebugGrid = newDebugGrid()
@@ -190,12 +231,17 @@ func (scene *ScenePlay) drawDebugAllowedPath(screen *ebiten.Image) {
 	if scene.images.DebugAllowedPath == nil {
 		scene.images.DebugAllowedPath = ebiten.NewImage(ScreenWidth, ScreenHeight)
 		pathColor := color.RGBA{R: 79, G: 79, B: 79, A: 255}
-		for _, cell := range AllowedPath {
-			startX := cell[0] * CellSize
-			startY := cell[1] * CellSize
-			for pixelY := startY; pixelY < startY+CellSize; pixelY++ {
-				for pixelX := startX; pixelX < startX+CellSize; pixelX++ {
-					scene.images.DebugAllowedPath.Set(pixelX, pixelY, pathColor)
+		for row, cells := range AllowedPath {
+			for column, allowed := range cells {
+				if !allowed {
+					continue
+				}
+				startX := column * CellSize
+				startY := row * CellSize
+				for pixelY := startY; pixelY < startY+CellSize; pixelY++ {
+					for pixelX := startX; pixelX < startX+CellSize; pixelX++ {
+						scene.images.DebugAllowedPath.Set(pixelX, pixelY, pathColor)
+					}
 				}
 			}
 		}

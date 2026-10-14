@@ -12,7 +12,7 @@ type Game struct {
 	scenePlay *ScenePlay
 }
 
-// New loads the play scene's assets and starts a fresh match in the ready phase.
+// New loads the play scene's assets and starts a fresh match immediately.
 func New() (*Game, error) {
 	game := &Game{}
 	scene, err := newScenePlay(&game.State)
@@ -21,6 +21,7 @@ func New() (*Game, error) {
 	}
 	game.scenePlay = scene
 	game.State.StartNewMatch()
+	game.State.BeginPlaying()
 	return game, nil
 }
 

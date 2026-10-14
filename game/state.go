@@ -37,11 +37,13 @@ type MatchState struct {
 	Lives int
 	// Level contains the current parameters and collectible presence flags.
 	Level LevelState
+	// PacMan stores the player's position and movement intent.
+	PacMan PacManState
 }
 
 // StartNewMatch resets score, lives, and level while retaining the session record.
 func (state *GameState) StartNewMatch() {
-	state.Match = &MatchState{Lives: InitialLives, Level: NewLevelState(1)}
+	state.Match = &MatchState{Lives: InitialLives, Level: NewLevelState(1), PacMan: NewPacManState()}
 	state.Phase = PhaseReady
 }
 
@@ -75,6 +77,11 @@ func (state *GameState) ConsumeCollectible(column, row int) bool {
 	if points == 0 {
 		return false
 	}
+	if points == 10 {
+		state.Match.PacMan.EatingPauseTicks = pacManCoinPauseTicks
+	} else if points == 50 {
+		state.Match.PacMan.EatingPauseTicks = pacManEnergizerPauseTicks
+	}
 	state.AddScore(points)
 	if state.Match.Level.Remaining == 0 {
 		state.Phase = PhaseLevelComplete
@@ -88,6 +95,7 @@ func (state *GameState) AdvanceLevel() bool {
 		return false
 	}
 	state.Match.Level = NewLevelState(state.Match.Level.Number + 1)
+	state.Match.PacMan = NewPacManState()
 	state.Phase = PhaseReady
 	return true
 }
@@ -98,6 +106,7 @@ func (state *GameState) LoseLife() bool {
 		return false
 	}
 	state.Match.Lives--
+	state.Match.PacMan = NewPacManState()
 	if state.Match.Lives == 0 {
 		state.Phase = PhaseGameOver
 	} else {

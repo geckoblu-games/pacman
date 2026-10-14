@@ -25,6 +25,8 @@ const (
 	lifeSourceX = 4
 	// lifeSourceY is the reserve-life icon's zero-based atlas row.
 	lifeSourceY = 0
+	// pacManSpriteCount is the number of Pac-Man frames in the atlas's first row.
+	pacManSpriteCount = 9
 	// bonusSourceY is the zero-based atlas row containing all eight bonus symbols.
 	bonusSourceY = 6
 	// coinSize is the generated square coin's side length in logical pixels.
@@ -40,6 +42,8 @@ type GameImages struct {
 	Energizer *ebiten.Image
 	// Life is the reserve-life sprite displayed in the bottom HUD.
 	Life *ebiten.Image
+	// PacManFrames contains eight directional mouth frames and one closed-mouth frame.
+	PacManFrames [pacManSpriteCount]*ebiten.Image
 	// BonusSymbols maps dossier symbol names to their atlas sprites.
 	BonusSymbols map[string]*ebiten.Image
 	// Coin is the generated white sprite for ordinary dots.
@@ -138,6 +142,20 @@ func LoadGameImages(wallSize image.Point) (GameImages, error) {
 	if err != nil {
 		return GameImages{}, err
 	}
+	var pacManFrames [pacManSpriteCount]*ebiten.Image
+	for column := range pacManFrames {
+		region := image.Rect(
+			column*classicTilesetTileSize,
+			0,
+			(column+1)*classicTilesetTileSize,
+			classicTilesetTileSize,
+		)
+		frame, err := LoadImageRegion("classic-tileset.png", region)
+		if err != nil {
+			return GameImages{}, fmt.Errorf("load Pac-Man frame %d: %w", column, err)
+		}
+		pacManFrames[column] = ebiten.NewImageFromImage(frame)
+	}
 	bonusSymbols := make(map[string]*ebiten.Image, 8)
 	for column, symbol := range []string{"Cherries", "Strawberry", "Peach", "Apple", "Grapes", "Galaxian", "Bell", "Key"} {
 		region := image.Rect(
@@ -159,6 +177,7 @@ func LoadGameImages(wallSize image.Point) (GameImages, error) {
 		Walls:        ebiten.NewImageFromImage(walls),
 		Energizer:    ebiten.NewImageFromImage(energizer),
 		Life:         ebiten.NewImageFromImage(life),
+		PacManFrames: pacManFrames,
 		BonusSymbols: bonusSymbols,
 		Coin:         coin,
 	}, nil

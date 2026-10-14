@@ -11,6 +11,7 @@ It intentionally contains **no code or pseudocode** — it is a design and requi
 - **[FACT]** — stated explicitly in the dossier, treated as ground truth.
 - **[ASSUMPTION]** — not fully specified by the dossier; a reasonable design decision is proposed and clearly separated from the facts.
 - **[AMBIGUITY]** — a point where the dossier's wording is open to interpretation, incomplete, or internally inconsistent; the implication for the implementation is stated.
+- **[DECISION]** — an owner-approved gameplay choice made where source material is incomplete or ambiguous.
 
 ---
 
@@ -52,7 +53,7 @@ Three sources of points, matching the dossier:
 | **Energizer (power pellet)**            | Position (corner areas), eaten/not-eaten, value = 50                                                                                | Triggers frightened mode globally; causes a 3-frame eating pause for Pac-Man.                                 |
 | **Bonus fruit**                         | Position (just below the ghost house), value (level-dependent, 100–5,000), lifespan (9–10 s, randomized), appears twice per round   | Not required to clear the level; purely a scoring opportunity.                                                |
 | **Walls / maze structure**              | Static grid of "legal space" vs. "dead space" tiles                                                                                 | Defines navigable topology; also defines special zones (one-way "red zones", tunnel "pink zones" — §7).       |
-| **Tunnel (side passage)**               | A pair of connected tiles at opposite horizontal maze edges                                                                         | Lets actors wrap around; imposes a ghost-only speed penalty while inside.                                     |
+| **Tunnel (side passage)**               | A pair of connected tiles at opposite horizontal maze edges                                                                         | Lets all actors wrap continuously; imposes a ghost-only speed penalty while inside.                           |
 | **Ghost house ("monster pen")**         | A sealed region with one door tile; holds ghosts between release and recapture                                                      | Governs spawn/respawn logic and timing (§6).                                                                  |
 | **Level**                               | Index (1, 2, 3, …), associated speed table, fright duration, fruit symbol/value, Elroy thresholds                                   | The master driver of nearly all tunable parameters (§5).                                                      |
 
@@ -75,6 +76,7 @@ Three sources of points, matching the dossier:
 - **[FACT]** Ghosts cannot voluntarily reverse direction; at an intersection, they can only continue straight or turn to a side, never flip 180°.
 - **[FACT]** The game engine, however, forcibly reverses all ghosts' direction whenever a **mode transition** occurs between: chase→scatter, chase→frightened, scatter→chase, scatter→frightened. No forced reversal occurs when leaving frightened mode back into chase or scatter.
 - **[FACT]** The reversal command is not instantaneous for every ghost simultaneously: each ghost only honors the "reverse" signal once it reaches the next tile boundary along its current path, meaning ghosts can appear to reverse at slightly different times after a mode change.
+- **[DECISION]** The ghost-only no-voluntary-reversal rule does not apply to Pac-Man: opposite directional input reverses his direction immediately, including in a corridor.
 - **Design implication:** mode transitions must be modeled as discrete events that set a "pending reversal" flag per ghost, consumed at the next tile-entry check, rather than mutating ghost direction immediately and globally.
 
 ### 3.4 Frightened Mode Pathing
@@ -246,6 +248,7 @@ Two independent, concurrently-active controls govern when a ghost leaves the hou
 ### 7.1 Tile Grid Model
 - **[FACT]** 8×8-pixel tiles; 28×36 grid for the canonical 224×288 screen. See `Tiles.png` for the legal-space/dead-space layout, and `TileGame.png` for the abstracted tile/direction view that the AI logic actually operates on.
 - **[ASSUMPTION]** A clone may use a different pixel-per-tile scale (e.g., for higher-resolution displays), but the **tile-based reasoning model itself (8-unit grid cells, actor position = center-point tile)** must be preserved structurally, since all ghost AI, dot placement, and distance calculations are tile-relative in the source material.
+- **[DECISION]** Tunnel traversal is visually continuous and symmetric for Pac-Man and every ghost. An actor may extend beyond the exiting screen edge while crossing; render complementary portions of the same sprite at both edges until its center wraps to the opposite side. Do not teleport the full sprite across the screen, overlap the two portions, or leave a visual gap. Preserve the ghost-only tunnel speed penalty.
 
 ### 7.2 Actor-Tile Association
 - **[FACT]** An actor's tile is determined purely by its center point, updated continuously as pixel position crosses tile boundaries — not snapped or rounded at intervals. See `TileMove2.png` for a frame-by-frame illustration of this update as a ghost crosses a tile boundary.
@@ -265,6 +268,7 @@ Before considering the clone "faithful," verify each of the following observable
 
 **Movement & Collision**
 - [ ] Pac-Man can begin a turn before reaching an intersection's center (cornering) and ghosts cannot.
+- [ ] Pac-Man and ghosts cross both tunnel edges continuously in either direction, showing complementary sprite portions at opposite edges without a jump, overlap, or gap; ghosts retain their tunnel speed penalty.
 - [ ] A rare, reproducible "pass-through" is observable under the exact tile-swap conditions, and only there.
 - [ ] Ghosts moving through the tunnel visibly slow down; Pac-Man does not.
 - [ ] Ghosts cannot turn upward in the four designated no-upturn tiles (except while frightened).
