@@ -17,7 +17,7 @@ const (
 	ScreenScale float64 = 1.2
 
 	// DebugGridEnabled toggles the grid independently of the gray path backgrounds.
-	DebugGridEnabled = true
+	DebugGridEnabled = false
 	// DebugGridDashSize defines equal dash and gap lengths; it must be greater than zero.
 	DebugGridDashSize = 1
 

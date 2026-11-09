@@ -75,14 +75,22 @@ func TestBonusSpritesLoaded(t *testing.T) {
 	}
 }
 
-// TestNewStartsMatchAutomatically checks that a new game is playable without pressing Enter.
-func TestNewStartsMatchAutomatically(t *testing.T) {
+// TestNewStartsWithReadyIntro checks that a new game shows the intro and starts play without Enter.
+func TestNewStartsWithReadyIntro(t *testing.T) {
 	game, err := New()
 	if err != nil {
 		t.Fatal(err)
 	}
+	if game.State.Phase != PhaseReady || game.State.PhaseTicks != 0 {
+		t.Fatalf("new game should start in the ready intro, got %v at tick %d", game.State.Phase, game.State.PhaseTicks)
+	}
+	for tick := 0; tick < ReadyTicks; tick++ {
+		if err := game.Update(); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if game.State.Phase != PhasePlaying {
-		t.Fatalf("new game should start in playing phase, got %v", game.State.Phase)
+		t.Fatalf("intro should end in playing phase, got %v", game.State.Phase)
 	}
 }
 
@@ -130,7 +138,7 @@ func TestPacManSpriteWrapDraw(t *testing.T) {
 	}
 }
 
-// TestScenePlayDelegation checks shared state, level advancement, and read-only drawing.
+// TestScenePlayDelegation checks shared state, timed level advancement, and read-only drawing.
 func TestScenePlayDelegation(t *testing.T) {
 	game, err := New()
 	if err != nil {
@@ -141,14 +149,21 @@ func TestScenePlayDelegation(t *testing.T) {
 	}
 	game.State.HighScore = 100
 	game.State.Phase = PhaseLevelComplete
-	if err := game.Update(); err != nil {
-		t.Fatal(err)
-	}
-	if game.State.Phase != PhaseReady || game.State.Match.Level.Number != 2 || game.State.HighScore != 100 {
-		t.Fatal("game update should delegate level advancement to the scene")
-	}
+	game.State.PhaseTicks = 0
 	screen := ebiten.NewImage(ScreenWidth, ScreenHeight)
 	defer screen.Deallocate()
+	for tick := 0; tick < LevelClearTicks; tick++ {
+		if game.State.Phase != PhaseLevelComplete {
+			t.Fatalf("tick %d: level should still be flashing", tick)
+		}
+		game.Draw(screen)
+		if err := game.Update(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if game.State.Phase != PhaseReady || game.State.Match.Level.Number != 2 || game.State.HighScore != 100 {
+		t.Fatal("game update should delegate timed level advancement to the scene")
+	}
 	before := game.State
 	matchBefore := *game.State.Match
 	game.Draw(screen)

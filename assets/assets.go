@@ -38,6 +38,8 @@ const (
 type GameImages struct {
 	// Walls is the transparent, full-screen permanent maze layer.
 	Walls *ebiten.Image
+	// WallsWhite is the same maze with blue wall pixels replaced by white.
+	WallsWhite *ebiten.Image
 	// Energizer is the reusable power-pellet sprite.
 	Energizer *ebiten.Image
 	// Life is the reserve-life sprite displayed in the bottom HUD.
@@ -172,9 +174,11 @@ func LoadGameImages(wallSize image.Point) (GameImages, error) {
 	}
 	coin := ebiten.NewImage(coinSize, coinSize)
 	coin.Fill(color.RGBA{R: 255, G: 255, B: 255, A: 255})
+	wallsBlue, wallsWhite := newWallImages(walls)
 
 	return GameImages{
-		Walls:        ebiten.NewImageFromImage(walls),
+		Walls:        wallsBlue,
+		WallsWhite:   wallsWhite,
 		Energizer:    ebiten.NewImageFromImage(energizer),
 		Life:         ebiten.NewImageFromImage(life),
 		PacManFrames: pacManFrames,

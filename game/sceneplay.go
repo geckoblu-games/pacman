@@ -25,7 +25,12 @@ const (
 	highScoreRightColumn = 15
 	// highScoreTop is the top HUD label offset in logical pixels.
 	highScoreTop = 2
+	// readyRow is the zero-based grid row of the corridor below the ghost house where READY! is centered.
+	readyRow = 20
 )
+
+// readyColor is the yellow used for the READY! intro message.
+var readyColor = color.RGBA{R: 255, G: 255, B: 0, A: 255}
 
 // ScenePlay handles match input and renders the maze, collectibles, and HUD.
 type ScenePlay struct {
@@ -57,17 +62,13 @@ func newScenePlay(state *GameState) (*ScenePlay, error) {
 	}, nil
 }
 
-// Update advances completed levels and handles Enter to start or resume play.
+// Update starts a new match on Enter after game over, advances the timed level-clear
+// and ready phases, and moves Pac-Man only during active play.
 func (scene *ScenePlay) Update() error {
-	if scene.State.Phase == PhaseLevelComplete {
-		scene.State.AdvanceLevel()
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && (scene.State.Match == nil || scene.State.Phase == PhaseGameOver) {
+		scene.State.StartNewMatch()
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-		if scene.State.Match == nil || scene.State.Phase == PhaseGameOver {
-			scene.State.StartNewMatch()
-		}
-		scene.State.BeginPlaying()
-	}
+	scene.State.Tick()
 	if scene.State.Phase == PhasePlaying && scene.State.Match != nil {
 		scene.updatePacMan(scene.pacManDirection())
 	}
@@ -102,12 +103,17 @@ func (scene *ScenePlay) pacManDirection() Direction {
 	}
 }
 
-// Draw composes debug backgrounds, walls, collectibles, Pac-Man, the grid, and the HUD.
+// Draw composes debug backgrounds, walls, collectibles, Pac-Man, the grid, the HUD,
+// and the READY! intro. The maze uses the white walls during white flash segments.
 func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	if DebugAllowedPathEnabled {
 		scene.drawDebugAllowedPath(screen)
 	}
-	screen.DrawImage(scene.images.Walls, nil)
+	if scene.State.MazeFlashWhite() {
+		screen.DrawImage(scene.images.WallsWhite, nil)
+	} else {
+		screen.DrawImage(scene.images.Walls, nil)
+	}
 	scene.drawCoins(screen)
 	scene.drawEnergizers(screen)
 	if scene.State.Match != nil {
@@ -127,6 +133,19 @@ func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	}
 	scene.drawLives(screen)
 	scene.drawBonusSymbols(screen)
+	scene.drawReady(screen)
+}
+
+// drawReady centers the yellow READY! message on readyRow during the ready intro.
+func (scene *ScenePlay) drawReady(screen *ebiten.Image) {
+	if scene.State.Match == nil || scene.State.Phase != PhaseReady {
+		return
+	}
+	op := &text.DrawOptions{}
+	op.PrimaryAlign = text.AlignCenter
+	op.GeoM.Translate(float64(ScreenWidth)/2, float64(readyRow*CellSize+(CellSize-highScoreFontSize)/2))
+	op.ColorScale.ScaleWithColor(readyColor)
+	text.Draw(screen, "READY!", scene.highScoreFace, op)
 }
 
 // bottomHUDPosition centers a life or bonus sprite in a mirrored bottom HUD slot.

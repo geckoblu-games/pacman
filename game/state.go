@@ -1,7 +1,15 @@
 package game
 
-// InitialLives counts the active life and reserve lives at the start of a match.
-const InitialLives = 3
+const (
+	// InitialLives counts the active life and reserve lives at the start of a match.
+	InitialLives = 3
+	// LevelClearTicks is the exact 60 Hz duration of the level-clear maze flash (2 seconds).
+	LevelClearTicks = 120
+	// LevelClearFlashes counts the white periods shown during the level-clear flash.
+	LevelClearFlashes = 4
+	// ReadyTicks is the approximate 60 Hz duration of the READY! intro (2 seconds).
+	ReadyTicks = 120
+)
 
 // Phase identifies the current stage of the match lifecycle.
 type Phase uint8
@@ -9,11 +17,11 @@ type Phase uint8
 const (
 	// PhaseWaiting is the zero-value state with no match started.
 	PhaseWaiting Phase = iota
-	// PhaseReady waits for Enter before accepting gameplay actions.
+	// PhaseReady shows the READY! intro with controls locked until Tick enters play.
 	PhaseReady
 	// PhasePlaying permits scoring, collectible consumption, and life loss.
 	PhasePlaying
-	// PhaseLevelComplete marks a cleared level awaiting advancement.
+	// PhaseLevelComplete flashes the cleared maze until Tick advances the level.
 	PhaseLevelComplete
 	// PhaseGameOver marks a match with no remaining lives.
 	PhaseGameOver
@@ -25,6 +33,8 @@ type GameState struct {
 	HighScore int
 	// Phase controls which match operations are currently valid.
 	Phase Phase
+	// PhaseTicks counts 60 Hz ticks elapsed in the current timed phase (ready or level complete).
+	PhaseTicks int
 	// Match is nil until a match is started.
 	Match *MatchState
 }
@@ -42,17 +52,56 @@ type MatchState struct {
 }
 
 // StartNewMatch resets score, lives, and level while retaining the session record.
+// The new match starts in the ready intro.
 func (state *GameState) StartNewMatch() {
 	state.Match = &MatchState{Lives: InitialLives, Level: NewLevelState(1), PacMan: NewPacManState()}
-	state.Phase = PhaseReady
+	state.enterPhase(PhaseReady)
+}
+
+// enterPhase switches phase and restarts the timed-phase tick counter.
+func (state *GameState) enterPhase(phase Phase) {
+	state.Phase = phase
+	state.PhaseTicks = 0
+}
+
+// Tick advances the timed phases by one 60 Hz tick: the level-clear flash
+// advances the level after LevelClearTicks and the ready intro begins play after ReadyTicks.
+// Other phases are unaffected.
+func (state *GameState) Tick() {
+	if state.Match == nil {
+		return
+	}
+	switch state.Phase {
+	case PhaseLevelComplete:
+		state.PhaseTicks++
+		if state.PhaseTicks >= LevelClearTicks {
+			state.AdvanceLevel()
+		}
+	case PhaseReady:
+		state.PhaseTicks++
+		if state.PhaseTicks >= ReadyTicks {
+			state.BeginPlaying()
+		}
+	}
+}
+
+// MazeFlashWhite reports whether the level-clear flash currently shows the white maze.
+// The flash splits LevelClearTicks into 2*LevelClearFlashes equal segments, starting white.
+func (state *GameState) MazeFlashWhite() bool {
+	if state.Match == nil || state.Phase != PhaseLevelComplete {
+		return false
+	}
+	segmentTicks := LevelClearTicks / (2 * LevelClearFlashes)
+	return (state.PhaseTicks/segmentTicks)%2 == 0
 }
 
 // BeginPlaying enters active play only when a match is in the ready phase.
+// Tick calls it when the intro expires; callers may use it to skip the intro.
 func (state *GameState) BeginPlaying() bool {
 	if state.Match == nil || state.Phase != PhaseReady {
 		return false
 	}
-	state.Phase = PhasePlaying
+	state.enterPhase(PhasePlaying)
 	return true
 }
 
@@ -67,7 +116,8 @@ func (state *GameState) AddScore(points int) {
 	}
 }
 
-// ConsumeCollectible awards points for a remaining dot and marks level completion.
+// ConsumeCollectible awards points for a remaining dot and starts the level-clear
+// flash on the final one; Pac-Man keeps his current position for that phase.
 // It rejects inactive play and returns whether a coin or energizer was consumed.
 func (state *GameState) ConsumeCollectible(column, row int) bool {
 	if state.Match == nil || state.Phase != PhasePlaying {
@@ -84,23 +134,24 @@ func (state *GameState) ConsumeCollectible(column, row int) bool {
 	}
 	state.AddScore(points)
 	if state.Match.Level.Remaining == 0 {
-		state.Phase = PhaseLevelComplete
+		state.enterPhase(PhaseLevelComplete)
 	}
 	return true
 }
 
-// AdvanceLevel replaces a cleared level and enters ready, preserving score and lives.
+// AdvanceLevel replaces a cleared level, resets Pac-Man to his starting position,
+// and enters the ready intro, preserving score and lives.
 func (state *GameState) AdvanceLevel() bool {
 	if state.Match == nil || state.Phase != PhaseLevelComplete {
 		return false
 	}
 	state.Match.Level = NewLevelState(state.Match.Level.Number + 1)
 	state.Match.PacMan = NewPacManState()
-	state.Phase = PhaseReady
+	state.enterPhase(PhaseReady)
 	return true
 }
 
-// LoseLife preserves the level and enters ready or game over during active play.
+// LoseLife preserves the level and enters the ready intro or game over during active play.
 func (state *GameState) LoseLife() bool {
 	if state.Match == nil || state.Phase != PhasePlaying {
 		return false
@@ -108,9 +159,9 @@ func (state *GameState) LoseLife() bool {
 	state.Match.Lives--
 	state.Match.PacMan = NewPacManState()
 	if state.Match.Lives == 0 {
-		state.Phase = PhaseGameOver
+		state.enterPhase(PhaseGameOver)
 	} else {
-		state.Phase = PhaseReady
+		state.enterPhase(PhaseReady)
 	}
 	return true
 }

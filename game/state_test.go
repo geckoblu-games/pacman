@@ -199,3 +199,111 @@ func TestInactiveStateRejectsGameplay(t *testing.T) {
 		t.Fatal("invalid points and positions should have no effect")
 	}
 }
+
+// clearLevel consumes every collectible of the current level during active play.
+func clearLevel(t *testing.T, state *GameState) {
+	t.Helper()
+	for _, coord := range CoinCoords {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	for _, coord := range EnergizerCoords {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if state.Phase != PhaseLevelComplete || state.PhaseTicks != 0 {
+		t.Fatalf("clearing the level should start the flash at tick 0: phase=%v ticks=%d", state.Phase, state.PhaseTicks)
+	}
+}
+
+// TestLevelClearFlashTiming checks the 120-tick flash, its four white periods, and Pac-Man freezing.
+func TestLevelClearFlashTiming(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	state.Match.PacMan.X = 100
+	state.Match.PacMan.Y = 200
+	clearLevel(t, &state)
+	frozen := state.Match.PacMan
+	if frozen.X != 100 || frozen.Y != 200 {
+		t.Fatal("clearing the level should not move Pac-Man")
+	}
+	segmentTicks := LevelClearTicks / (2 * LevelClearFlashes)
+	if segmentTicks != 15 {
+		t.Fatalf("expected 15-tick flash segments, got %d", segmentTicks)
+	}
+	whiteStarts := 0
+	previousWhite := false
+	for tick := 0; tick < LevelClearTicks; tick++ {
+		if state.Phase != PhaseLevelComplete || state.PhaseTicks != tick {
+			t.Fatalf("tick %d: expected level-complete phase at tick %d, got phase %v tick %d", tick, tick, state.Phase, state.PhaseTicks)
+		}
+		if state.Match.PacMan != frozen {
+			t.Fatalf("tick %d: Pac-Man should stay where the flash began", tick)
+		}
+		white := state.MazeFlashWhite()
+		if want := (tick/segmentTicks)%2 == 0; white != want {
+			t.Fatalf("tick %d: white=%v, want %v", tick, white, want)
+		}
+		if white && !previousWhite {
+			whiteStarts++
+		}
+		previousWhite = white
+		state.Tick()
+	}
+	if whiteStarts != LevelClearFlashes || previousWhite {
+		t.Fatalf("expected %d white flashes ending blue, got %d (last white=%v)", LevelClearFlashes, whiteStarts, previousWhite)
+	}
+	if state.Phase != PhaseReady || state.PhaseTicks != 0 || state.Match.Level.Number != 2 || state.MazeFlashWhite() {
+		t.Fatalf("flash should end in the ready intro of level 2: %+v", state)
+	}
+	if state.Match.PacMan != NewPacManState() {
+		t.Fatal("Pac-Man should be at his starting position for the intro")
+	}
+}
+
+// TestReadyIntroTiming checks that every ready entry waits ReadyTicks before play begins.
+func TestReadyIntroTiming(t *testing.T) {
+	expectIntro := func(state *GameState, context string) {
+		for tick := 0; tick < ReadyTicks; tick++ {
+			if state.Phase != PhaseReady || state.PhaseTicks != tick {
+				t.Fatalf("%s: tick %d should still be in the ready intro, got phase %v tick %d", context, tick, state.Phase, state.PhaseTicks)
+			}
+			if state.ConsumeCollectible(CoinCoords[0][0], CoinCoords[0][1]) {
+				t.Fatalf("%s: controls should be locked during the intro", context)
+			}
+			state.Tick()
+		}
+		if state.Phase != PhasePlaying || state.PhaseTicks != 0 {
+			t.Fatalf("%s: intro should end in play: phase %v tick %d", context, state.Phase, state.PhaseTicks)
+		}
+	}
+	state := GameState{}
+	state.Tick()
+	if state.Phase != PhaseWaiting || state.PhaseTicks != 0 {
+		t.Fatal("ticking without a match should do nothing")
+	}
+	state.StartNewMatch()
+	expectIntro(&state, "new match")
+	state.LoseLife()
+	expectIntro(&state, "life lost")
+	clearLevel(t, &state)
+	for tick := 0; tick < LevelClearTicks; tick++ {
+		state.Tick()
+	}
+	expectIntro(&state, "next level")
+	for tick := 0; tick < 10; tick++ {
+		state.Tick()
+	}
+	if state.Phase != PhasePlaying || state.PhaseTicks != 0 {
+		t.Fatal("ticking during play should not change phase or counter")
+	}
+	state.LoseLife()
+	state.BeginPlaying()
+	state.LoseLife()
+	if state.Phase != PhaseGameOver {
+		t.Fatal("expected game over")
+	}
+	state.Tick()
+	if state.Phase != PhaseGameOver || state.MazeFlashWhite() {
+		t.Fatal("ticking after game over should do nothing")
+	}
+}

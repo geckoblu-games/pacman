@@ -46,6 +46,8 @@ Three sources of points, matching the dossier:
 - **[DECISION]** Pac-Man stops immediately where he is when the level-clear flash begins, and all four ghosts disappear from the screen immediately. The maze flash is the only visible level-clear effect specified here.
 - **[DECISION]** At the start of the next level, show a centered yellow `READY!` message for approximately 2 seconds. Pac-Man and all four ghosts are visible, stationary, and placed at their starting positions during this intro.
 - **[DECISION]** Play a short musical jingle during the new-level intro. Keep gameplay controls locked and all characters stationary until `READY!` has disappeared and the jingle has finished; then unlock controls and let the characters move.
+- **[DECISION]** The flash is split into eight equal 15-tick segments, starting white as soon as the last collectible is eaten and ending blue, so the maze is blue again when the next level's intro appears.
+- **[DECISION]** The same `READY!` intro (centered yellow message, ~2 seconds, controls locked, automatic start) is shown at the start of a new match and after a life is lost, not only between levels. No key press is required to begin play.
 - **Timing note:** The simulation uses a 60 Hz logical tick (§9.2), so the exact 2-second level-clear flash corresponds to 120 ticks. The READY duration is approximate, not an exact tick count.
 
 ---
@@ -296,7 +298,7 @@ Before considering the clone "faithful," verify each of the following observable
 
 **Level Transitions**
 - [ ] Clearing the final collectible starts a 120-tick (2-second) maze flash that alternates blue and white four times; Pac-Man stops in place and all ghosts disappear immediately.
-- [ ] The next level shows a centered yellow `READY!` for approximately 2 seconds, with Pac-Man and all ghosts visible, stationary, and at their starting positions.
+- [ ] The next level shows a centered yellow `READY!` for approximately 2 seconds, with Pac-Man and all ghosts visible, stationary, and at their starting positions. The same intro appears at match start and after a life is lost.
 - [ ] A short jingle plays during the new-level intro; controls remain locked and actors remain still until both `READY!` has disappeared and the jingle has ended.
 
 **Ghost House**
