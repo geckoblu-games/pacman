@@ -41,6 +41,13 @@ Three sources of points, matching the dossier:
 - **[FACT]** Clearing all dots in the maze (240 + 4) ends the round and advances the level counter; there is no final "win" screen described in the dossier — the game is designed to continue indefinitely with escalating/stabilizing difficulty (see §5).
 - **[ASSUMPTION]** For a clone, decide explicitly whether to cap levels (e.g., loop content after level 21+, matching the "steady state" difficulty table) or implement procedurally generated/varied mazes beyond a certain level. The dossier's data stabilizes at level 21+, implying the original design intends indefinite play at a fixed difficulty ceiling — this is a reasonable stopping point for parity.
 
+### 1.6 Level-Clear and New-Level Intro
+- **[DECISION]** When the last collectible is consumed, the completed maze flashes blue and white for exactly 2 seconds before the next level begins. The colors alternate for a total of four equal flashes during this interval.
+- **[DECISION]** Pac-Man stops immediately where he is when the level-clear flash begins, and all four ghosts disappear from the screen immediately. The maze flash is the only visible level-clear effect specified here.
+- **[DECISION]** At the start of the next level, show a centered yellow `READY!` message for approximately 2 seconds. Pac-Man and all four ghosts are visible, stationary, and placed at their starting positions during this intro.
+- **[DECISION]** Play a short musical jingle during the new-level intro. Keep gameplay controls locked and all characters stationary until `READY!` has disappeared and the jingle has finished; then unlock controls and let the characters move.
+- **Timing note:** The simulation uses a 60 Hz logical tick (§9.2), so the exact 2-second level-clear flash corresponds to 120 ticks. The READY duration is approximate, not an exact tick count.
+
 ---
 
 ## 2. Core Entities
@@ -287,6 +294,11 @@ Before considering the clone "faithful," verify each of the following observable
 - [ ] Frightened duration and flash count shrink per the per-level table, and fright mode visibly disappears (no blue, no vulnerability) on levels 17/19/20/21+ while level 18 retains a brief fright window (per the table-vs-prose resolution in §5.2).
 - [ ] Cruise Elroy triggers at the correct dot-remaining thresholds, speeds Blinky appropriately, and is suspended after a death until Clyde is seen leaving the house again.
 
+**Level Transitions**
+- [ ] Clearing the final collectible starts a 120-tick (2-second) maze flash that alternates blue and white four times; Pac-Man stops in place and all ghosts disappear immediately.
+- [ ] The next level shows a centered yellow `READY!` for approximately 2 seconds, with Pac-Man and all ghosts visible, stationary, and at their starting positions.
+- [ ] A short jingle plays during the new-level intro; controls remain locked and actors remain still until both `READY!` has disappeared and the jingle has ended.
+
 **Ghost House**
 - [ ] At level start, Pinky/Inky/Clyde leave in the documented order and timing for levels 1, 2, and 3+ respectively.
 - [ ] After a death, the global dot counter governs releases at 7/17/32 and the Clyde-presence condition for deactivation behaves as documented.
@@ -320,7 +332,7 @@ Three largely independent concerns emerge directly from the dossier's own struct
 ### 9.3 State Machines as the Core Abstraction
 Two layered state machines recur throughout the dossier and should be first-class concepts in the architecture, not incidental flags:
 
-- **Global game-flow state machine:** attract/menu → ready countdown → playing → death sequence → (life remaining? back to ready countdown : game over) → high-score/attract. This matches the scene layer in §9.1.
+- **Global game-flow state machine:** attract/menu → ready countdown → playing → (level complete? 2-second level-clear flash → next-level READY/jingle → playing : death sequence → life remaining? ready countdown : game over) → high-score/attract. Level-clear and new-level intro timing/visibility are specified in §1.6.
 - **Per-ghost mode state machine:** Chase ⇄ Scatter (timer-driven, see §4.2) with Frightened and Eaten as interrupting states that can be entered from either and that resume the interrupted state's timer afterward (§4.2, §4.5). Each ghost instance needs its own mode state, but the **chase/scatter timer itself is shared/global**, not per-ghost — this distinction matters architecturally: don't model it as four independent timers that could drift out of sync.
 
 ### 9.4 Target-Tile Strategy as a Pluggable Responsibility
