@@ -37,6 +37,8 @@ type GameState struct {
 	Phase Phase
 	// PhaseTicks counts 60 Hz ticks elapsed in the current timed phase (ready or level complete).
 	PhaseTicks int
+	// Paused freezes Tick and gameplay input until TogglePause clears it.
+	Paused bool
 	// Match is nil until a match is started.
 	Match *MatchState
 	// Random draws bonus durations; nil creates an unpredictably seeded generator on first use.
@@ -58,10 +60,22 @@ type MatchState struct {
 }
 
 // StartNewMatch resets score, lives, and level while retaining the session record.
-// The new match starts in the ready intro.
+// The new match starts unpaused in the ready intro.
 func (state *GameState) StartNewMatch() {
 	state.Match = &MatchState{Lives: InitialLives, Level: NewLevelState(1), PacMan: NewPacManState()}
+	state.Paused = false
 	state.enterPhase(PhaseReady)
+}
+
+// TogglePause flips the pause flag of a match that is not over and reports the new
+// value. Without a match or after game over it clears the flag and returns false.
+func (state *GameState) TogglePause() bool {
+	if state.Match == nil || state.Phase == PhaseGameOver {
+		state.Paused = false
+		return false
+	}
+	state.Paused = !state.Paused
+	return state.Paused
 }
 
 // enterPhase switches phase and restarts the timed-phase tick counter.
@@ -72,9 +86,9 @@ func (state *GameState) enterPhase(phase Phase) {
 
 // Tick advances the timed phases by one 60 Hz tick: the level-clear flash
 // advances the level after LevelClearTicks, the ready intro begins play after ReadyTicks,
-// and active play runs the bonus timers. Other phases are unaffected.
+// and active play runs the bonus timers. Other phases and a paused match are unaffected.
 func (state *GameState) Tick() {
-	if state.Match == nil {
+	if state.Match == nil || state.Paused {
 		return
 	}
 	switch state.Phase {

@@ -471,3 +471,57 @@ func TestReadyIntroTiming(t *testing.T) {
 		t.Fatal("ticking after game over should do nothing")
 	}
 }
+
+// TestTogglePause checks that pausing freezes Tick in timed phases and play, that
+// unpausing resumes exactly where it stopped, and that it is rejected without a match,
+// after game over, and cleared by a new match.
+func TestTogglePause(t *testing.T) {
+	state := GameState{}
+	if state.TogglePause() || state.Paused {
+		t.Fatal("pause should be rejected without a match")
+	}
+	state.StartNewMatch()
+	state.Tick()
+	if !state.TogglePause() || !state.Paused {
+		t.Fatal("expected the match to pause during the intro")
+	}
+	for range ReadyTicks {
+		state.Tick()
+	}
+	if state.Phase != PhaseReady || state.PhaseTicks != 1 {
+		t.Fatalf("paused intro should not advance: phase %v tick %d", state.Phase, state.PhaseTicks)
+	}
+	if state.TogglePause() || state.Paused {
+		t.Fatal("second toggle should resume")
+	}
+	state.Tick()
+	if state.PhaseTicks != 2 {
+		t.Fatalf("resumed intro should continue from tick 1, got %d", state.PhaseTicks)
+	}
+	state.BeginPlaying()
+	state.Match.Fruit.Visible = true
+	state.Match.Fruit.Ticks = 10
+	state.TogglePause()
+	state.Tick()
+	if state.Match.Fruit.Ticks != 10 {
+		t.Fatal("paused play should not advance the bonus timer")
+	}
+	state.TogglePause()
+	state.Tick()
+	if state.Match.Fruit.Ticks != 9 {
+		t.Fatal("resumed play should advance the bonus timer")
+	}
+	state.TogglePause()
+	state.StartNewMatch()
+	if state.Paused {
+		t.Fatal("a new match should start unpaused")
+	}
+	state.BeginPlaying()
+	for state.Phase != PhaseGameOver {
+		state.LoseLife()
+		state.BeginPlaying()
+	}
+	if state.TogglePause() || state.Paused {
+		t.Fatal("pause should be rejected after game over")
+	}
+}

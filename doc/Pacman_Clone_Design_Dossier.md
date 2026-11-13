@@ -58,6 +58,11 @@ Three sources of points, matching the dossier:
 - **[DECISION]** Save a new record immediately upon level completion (before the maze flash), at game over, and on normal window closure. Do not write during ordinary scoring or rewrite an unchanged record.
 - **[DECISION]** Report persistence errors without preventing play. Keep an unsaved record in memory and retry at the next checkpoint. Abrupt termination can lose points earned since the last successful checkpoint.
 
+### 1.8 Pause
+- **[DECISION]** Pressing `P` pauses the match as a desktop convenience, not an arcade-fidelity feature. Pressing `P` again resumes. While paused, the whole simulation is frozen (phase timers, bonus timers, movement, and gameplay input) and resumes exactly where it stopped, so pausing does not alter any tick-counted behavior.
+- **[DECISION]** Pausing is possible during the READY! intro, active play, and the level-clear flash. It is rejected when no match exists or after game over, and a new match always starts unpaused.
+- **[DECISION]** While paused, a centered yellow `PAUSED` message replaces the `READY!` message position on the corridor below the ghost house; the rest of the screen is drawn unchanged.
+
 ---
 
 ## 2. Core Entities

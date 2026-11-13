@@ -65,11 +65,18 @@ func newScenePlay(state *GameState) (*ScenePlay, error) {
 	}, nil
 }
 
-// Update starts a new match on Enter after game over, advances the timed level-clear
-// and ready phases, and moves Pac-Man only during active play.
+// Update starts a new match on Enter after game over, toggles the pause on P, and
+// while unpaused advances the timed level-clear and ready phases and moves Pac-Man
+// only during active play.
 func (scene *ScenePlay) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && (scene.State.Match == nil || scene.State.Phase == PhaseGameOver) {
 		scene.State.StartNewMatch()
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyP) {
+		scene.State.TogglePause()
+	}
+	if scene.State.Paused {
+		return nil
 	}
 	scene.State.Tick()
 	if scene.State.Phase == PhasePlaying && scene.State.Match != nil {
@@ -109,8 +116,8 @@ func (scene *ScenePlay) pacManDirection() Direction {
 }
 
 // Draw composes debug backgrounds, walls, collectibles, the bonus or its score popup,
-// Pac-Man, the grid, the HUD, and the READY! intro. The maze uses the white walls
-// during white flash segments.
+// Pac-Man, the grid, the HUD, and the READY! intro or PAUSED message. The maze uses
+// the white walls during white flash segments.
 func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	if DebugAllowedPathEnabled {
 		scene.drawDebugAllowedPath(screen)
@@ -143,16 +150,26 @@ func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	scene.drawReady(screen)
 }
 
-// drawReady centers the yellow READY! message on readyRow during the ready intro.
+// drawReady centers a yellow message on readyRow: PAUSED while the match is paused,
+// otherwise READY! during the ready intro.
 func (scene *ScenePlay) drawReady(screen *ebiten.Image) {
-	if scene.State.Match == nil || scene.State.Phase != PhaseReady {
+	if scene.State.Match == nil {
+		return
+	}
+	message := ""
+	switch {
+	case scene.State.Paused:
+		message = "PAUSED"
+	case scene.State.Phase == PhaseReady:
+		message = "READY!"
+	default:
 		return
 	}
 	op := &text.DrawOptions{}
 	op.PrimaryAlign = text.AlignCenter
 	op.GeoM.Translate(float64(ScreenWidth)/2, float64(readyRow*CellSize+(CellSize-highScoreFontSize)/2))
 	op.ColorScale.ScaleWithColor(readyColor)
-	text.Draw(screen, "READY!", scene.highScoreFace, op)
+	text.Draw(screen, message, scene.highScoreFace, op)
 }
 
 // drawFruit draws the visible bonus sprite centered on its position, or the pink
