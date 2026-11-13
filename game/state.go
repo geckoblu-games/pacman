@@ -29,7 +29,7 @@ const (
 
 // GameState stores the session record, current phase, and optional active match.
 type GameState struct {
-	// HighScore is the session record, preserved when starting another match.
+	// HighScore is the record, optionally loaded and persisted by the application.
 	HighScore int
 	// Phase controls which match operations are currently valid.
 	Phase Phase

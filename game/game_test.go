@@ -1,11 +1,104 @@
 package game
 
 import (
+	"errors"
 	"image"
+	"path/filepath"
 	"testing"
+
+	"pacman-ai/highscore"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
+
+// TestHighScoreCheckpoints checks immediate level-clear persistence and game-over persistence.
+func TestHighScoreCheckpoints(t *testing.T) {
+	game, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "highscore")
+	store := highscore.New(path)
+	if err := store.Save(100); err != nil {
+		t.Fatal(err)
+	}
+	game.State.HighScore, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	game.SaveHighScore = store.Save
+	game.State.BeginPlaying()
+	game.State.AddScore(110)
+	if err := game.Update(); err != nil {
+		t.Fatal(err)
+	}
+	if score, err := highscore.New(path).Load(); err != nil || score != 100 {
+		t.Fatalf("active play should not persist a new record: %d, %v", score, err)
+	}
+	level := &game.State.Match.Level
+	level.Coins = [240]bool{true}
+	level.Energizers = [4]bool{}
+	level.Remaining = 1
+	coord := CoinCoords[0]
+	game.State.Match.PacMan = PacManState{
+		X: float64(coord[0]*CellSize + CellSize/2),
+		Y: float64(coord[1]*CellSize + CellSize/2),
+	}
+	if err := game.Update(); err != nil {
+		t.Fatal(err)
+	}
+	if game.State.Phase != PhaseLevelComplete || game.State.PhaseTicks != 0 {
+		t.Fatal("expected level completion on this update")
+	}
+	if score, err := highscore.New(path).Load(); err != nil || score != 120 {
+		t.Fatalf("level completion should immediately persist the final dot: %d, %v", score, err)
+	}
+	game.State.AdvanceLevel()
+	game.State.BeginPlaying()
+	game.State.AddScore(20)
+	game.State.Match.Lives = 1
+	game.State.LoseLife()
+	if err := game.Update(); err != nil {
+		t.Fatal(err)
+	}
+	if score, err := highscore.New(path).Load(); err != nil || score != 140 {
+		t.Fatalf("game over should persist the record: %d, %v", score, err)
+	}
+}
+
+// TestHighScoreCheckpointFailure checks errors do not stop play or retry every tick.
+func TestHighScoreCheckpointFailure(t *testing.T) {
+	game, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	game.SaveHighScore = func(score int) error {
+		calls++
+		if calls == 1 {
+			return errors.New("test save failure")
+		}
+		return nil
+	}
+	game.State.Phase = PhaseLevelComplete
+	for tick := 0; tick < LevelClearTicks; tick++ {
+		if err := game.Update(); err != nil {
+			t.Fatalf("save failure should not stop play: %v", err)
+		}
+	}
+	if calls != 1 {
+		t.Fatalf("expected one attempt at level completion, got %d", calls)
+	}
+	game.State.BeginPlaying()
+	game.State.Match.Lives = 1
+	game.State.LoseLife()
+	if err := game.Update(); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("expected another attempt at the next checkpoint, got %d", calls)
+	}
+}
 
 // TestBottomHUDPosition verifies icon mirroring, spacing, and screen bounds.
 func TestBottomHUDPosition(t *testing.T) {

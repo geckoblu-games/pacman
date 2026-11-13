@@ -7,11 +7,12 @@ import (
 
 	"pacman-ai/assets"
 	"pacman-ai/game"
+	"pacman-ai/highscore"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// main configures the window, loads the scene, and runs Ebitengine's frame loop.
+// main configures the window, restores the record, runs the game, and saves on exit.
 func main() {
 	windowWidth := int(math.Round(float64(game.ScreenWidth) * game.ScreenScale))
 	windowHeight := int(math.Round(float64(game.ScreenHeight) * game.ScreenScale))
@@ -28,7 +29,28 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := ebiten.RunGame(pacman); err != nil {
-		log.Fatal(err)
+	path, err := highscore.DefaultPath()
+	if err != nil {
+		log.Printf("high-score persistence unavailable: %v", err)
+	}
+	var store *highscore.Store
+	if err == nil {
+		store = highscore.New(path)
+		score, err := store.Load()
+		if err != nil {
+			log.Printf("load high score: %v", err)
+		} else {
+			pacman.State.HighScore = score
+		}
+		pacman.SaveHighScore = store.Save
+	}
+	runErr := ebiten.RunGame(pacman)
+	if store != nil {
+		if err := store.Save(pacman.State.HighScore); err != nil {
+			log.Printf("save high score on exit: %v", err)
+		}
+	}
+	if runErr != nil {
+		log.Fatal(runErr)
 	}
 }

@@ -50,6 +50,14 @@ Three sources of points, matching the dossier:
 - **[DECISION]** The same `READY!` intro (centered yellow message, ~2 seconds, controls locked, automatic start) is shown at the start of a new match and after a life is lost, not only between levels. No key press is required to begin play.
 - **Timing note:** The simulation uses a 60 Hz logical tick (§9.2), so the exact 2-second level-clear flash corresponds to 120 ticks. The READY duration is approximate, not an exact tick count.
 
+### 1.7 Persistent High Score
+- **[DECISION]** Preserve the high score across application runs as an intentional desktop convenience, not an arcade-fidelity requirement inferred from the source dossier. Starting a new match resets its score but retains the record.
+- **[DECISION]** On Linux, use `$XDG_DATA_HOME/geckoblu/pacman/highscore` when `XDG_DATA_HOME` is absolute; otherwise use `~/.local/share/geckoblu/pacman/highscore`.
+- **[DECISION]** Use `%LOCALAPPDATA%\geckoblu\pacman\highscore` on Windows and `~/Library/Application Support/geckoblu/pacman/highscore` on macOS. On iOS, use Application Support inside the application's sandbox. Android hosts must supply a record file inside the app-private persistent files directory; do not infer package-specific paths or use shared storage.
+- **[DECISION]** Mobile support at this stage is limited to the persistence module. A native host must supply Android's private path and wire mobile loading, checkpoints, and lifecycle saves; mobile packaging and lifecycle integration are not implemented.
+- **[DECISION]** Save a new record immediately upon level completion (before the maze flash), at game over, and on normal window closure. Do not write during ordinary scoring or rewrite an unchanged record.
+- **[DECISION]** Report persistence errors without preventing play. Keep an unsaved record in memory and retry at the next checkpoint. Abrupt termination can lose points earned since the last successful checkpoint.
+
 ---
 
 ## 2. Core Entities

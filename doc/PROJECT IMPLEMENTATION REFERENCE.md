@@ -12,6 +12,9 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. It renders the 
 |-- go.mod
 |-- go.sum
 |-- README.md
+|-- highscore/
+|   |-- highscore.go
+|   `-- highscore_test.go
 |-- assets/
 |   |-- assets.go
 |   |-- walls.go
@@ -45,13 +48,13 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. It renders the 
 
 ### Root files
 
-- `main.go` is the executable entry point. It calculates the initial window dimensions from the game's logical dimensions and scale, sets the title and window icons, constructs the game, and starts Ebitengine's event loop. Initialization and run errors are fatal and reported through the standard logger.
+- `main.go` is the executable entry point. It calculates the initial window dimensions from the game's logical dimensions and scale, sets the title and window icons, constructs the game, restores the high score, and starts Ebitengine's event loop. It supplies the game's save callback and saves again after the event loop returns, including normal window closure and run errors. Asset initialization and run errors are fatal; persistence errors are logged without preventing play or normal exit.
 - `go.mod` declares module `pacman-ai`, Go 1.22.0, and Ebitengine v2.8.8. `go.sum` records dependency checksums.
 - `README.md` contains user-facing requirements, run/build instructions, and a short project structure overview.
 
 ### `game/`
 
-- `game.go` owns the Ebitengine `Game` implementation and session state. Its `Update` and `Draw` callbacks delegate to its `ScenePlay`, while `Layout` returns the logical dimensions. `game_test.go` verifies the AllowedPath matrix, bottom-HUD geometry, bonus sprite loading, shared state, the automatic READY! intro at startup, and delegation of timed level advancement and rendering.
+- `game.go` owns the Ebitengine `Game` implementation and session state. Its `Update` and `Draw` callbacks delegate to its `ScenePlay`, while `Layout` returns the logical dimensions. `Update` observes phase entry before and after the scene update, calling the optional `SaveHighScore` callback at level completion and game over. Checking before the update also handles a checkpoint reached between updates, before input can start a new match or advance a timed phase. Save failures are logged once per checkpoint, not once per tick. `game_test.go` verifies checkpoint persistence and retry timing as well as the AllowedPath matrix, bottom-HUD geometry, bonus sprite loading, shared state, the automatic READY! intro at startup, and delegation of timed level advancement and rendering.
 - `sceneplay.go` defines `ScenePlay`, which holds a pointer to `Game.State`, the `assets.GameImages` bundle, the HUD font face, and the Pac-Man sprite. It maps arrow/WASD input to a requested direction, calls `GameState.Tick` every frame to drive the level-clear flash and READY! intro, advances the player during active play, composes the screen in `Draw`, and owns all drawing helpers, including the `READY!` message, debug overlays, and their lazy caches.
 - `pacman.go` defines renderer-independent player position, direction, speed conversion, buffered tile turns, immediate reversal on opposite input, early/late diagonal cornering, wall blocking, continuous side-tunnel traversal, and the deterministic mouth-animation cycle. Tunnel coordinates pass beyond one screen edge before wrapping while preserving the remaining movement distance.
 - `pacman_test.go` checks level-speed movement, corridor reversal, buffered turns, early and late diagonal cornering, wall blocking, respawn positioning, and the mouth-animation cycle without initializing Ebitengine.
@@ -71,6 +74,14 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. It renders the 
 - The four `icon_*.png` files provide window-manager icon choices at multiple sizes.
 - `PressStart2P-Regular.ttf` is embedded and loaded once for the top-center `HIGH SCORE` label.
 
+### `highscore/`
+
+- `highscore.go` owns platform data-path resolution and filesystem persistence, independently of simulation and rendering. `DefaultPath` uses an absolute `XDG_DATA_HOME` or falls back to `~/.local/share` on Linux, `LOCALAPPDATA` on Windows, and `$HOME/Library/Application Support` on macOS and iOS, followed by `geckoblu/pacman/highscore`. Relative `XDG_DATA_HOME` values are ignored; missing or relative resolved data roots are errors. On iOS, `HOME` must identify the app sandbox; the implementation deliberately avoids `os.UserHomeDir`'s root-directory fallback. Android has no inferred default: the native host must pass a file inside `Context.getFilesDir()` to `New`, which accepts an explicit path on all platforms. Unsupported default-path platforms return an error.
+- `Store.Load` reads a nonnegative decimal integer; a missing file means zero, while malformed data and other read errors are reported. `Store.Save` only writes a record higher than the last successful load or save. It creates parent directories with mode `0755` and writes the integer and newline to a unique temporary file with mode `0600` (Unix permissions). The temporary file is synced and closed before `os.Rename` replaces the destination in the same directory. On Unix this replacement is atomic and the directory is then synced. On Windows, Go's replacement operation is used, but no Unix atomicity guarantee is asserted; directory sync is omitted because directory handles opened by `os.Open` do not support it. Temporary files are cleaned up on failure. Failed saves remain eligible for retry. The store assumes a single application instance; concurrent processes do not coordinate updates.
+- `highscore_test.go` tests platform path selection, invalid roots, Android's explicit-private-path requirement, first-run behavior, restart loading, exact file contents, unchanged-record suppression, invalid data, failed-save retries, and temporary-file cleanup.
+
+The persistence module can be used by Android and iOS hosts, but the application entry point remains desktop-only. There is no mobile packaging or native directory/lifecycle bridge in this repository. A mobile host must load the record, connect checkpoint saves, and save on appropriate lifecycle events; mobile termination does not guarantee that the desktop post-`RunGame` save will run.
+
 ### `doc/`
 
 This directory contains source/reference material: the reference map image, a wall-tile sketch PDF, and a local copy of The Pac-Man Dossier. They are not read by the runtime; the runtime maze is `assets/walls.png` and the path coordinates are compiled into `game/constsantsmaze.go`.
@@ -83,6 +94,7 @@ This directory contains source/reference material: the reference map image, a wa
 4. `game.New` starts a match in `PhaseReady`, so the READY! intro begins without a key press. `Game.Update` delegates to `ScenePlay.Update`, which first handles Enter (starting a fresh match only when none exists or after game over), then calls `GameState.Tick`. The tick advances the two timed phases: the level-clear flash lasts exactly `LevelClearTicks` (120) and then advances the level; the ready intro lasts `ReadyTicks` (120, approximately 2 seconds) and then unlocks play automatically. Gameplay controls are ignored outside `PhasePlaying`. During active play, arrow keys or WASD move Pac-Man at the configured level speed with buffered cornering. Entering a tile with a remaining coin or energizer removes it, awards its points, and pauses Pac-Man for one or three ticks respectively. There is no death animation or jingle yet; ghosts are not implemented, so nothing disappears at level clear.
 5. `Draw` composes layers in this order: optional allowed-path background, permanent maze walls (white during white flash segments, otherwise blue), remaining coins and energizers, Pac-Man's sprite when a match exists, optional dashed grid, the white `1UP` and `HIGH SCORE` labels and their numeric scores, reserve lives, bonus symbols, and finally the yellow `READY!` message during `PhaseReady`. `READY!` is horizontally centered on the screen and vertically centered on zero-based row 20, the corridor below the ghost house. During the flash Pac-Man is drawn where he stopped; during the intro he is drawn at his starting position. Both labels use Press Start 2P at the same top offset; `1UP` begins at column 3 and `HIGH SCORE` at column 9. Scores appear one grid row below the labels. The current score is right-aligned to the right edge of zero-based column 6 (x = 112); the high score is right-aligned to the right edge of column 16 (x = 272). Collectible positions come from `CoinCoords` and `EnergizerCoords`; their visibility comes from the current level state. Debug images are generated lazily and cached. Pac-Man consumes the collectible in his occupied tile during `Update`; drawing remains read-only.
 6. `Layout` always returns the logical dimensions. Ebitengine scales that fixed-resolution image to the window; resizing does not change the game's grid or logical coordinates.
+7. Persistence is configured by `main`, not by `game.New`, so constructing a game in tests never accesses user data. The loaded record is assigned before entering the event loop. Entering `PhaseLevelComplete` saves the final collectible's score immediately, before the flash advances; entering `PhaseGameOver` is another checkpoint. After `RunGame` returns, `main` attempts a final save even during an unfinished match. Abrupt process termination is not a normal window closure and may lose points since the last successful checkpoint.
 
 ## Implementation Decisions
 
@@ -112,7 +124,7 @@ The overlays are composed around, rather than baked into, the permanent wall ima
 
 ### Game state and lifecycle
 
-`Game.State` owns a `GameState`. Its zero value has `PhaseWaiting` and no match. `HighScore` belongs to this application session and is neither persisted nor reset by a new match. `PhaseTicks` counts the 60 Hz ticks elapsed in the current timed phase and is reset by every phase change. `MatchState` contains score, total remaining lives (including the current life), a `LevelState`, and Pac-Man's state. The level contains its one-based number, a `LevelParameters` value, presence flags for all 240 coins and 4 energizers, and their remaining count.
+`Game.State` owns a `GameState`. Its zero value has `PhaseWaiting` and no match. `HighScore` is retained across matches and is loaded and persisted across application runs by the desktop application. Simulation methods do not perform I/O. `PhaseTicks` counts the 60 Hz ticks elapsed in the current timed phase and is reset by every phase change. `MatchState` contains score, total remaining lives (including the current life), a `LevelState`, and Pac-Man's state. The level contains its one-based number, a `LevelParameters` value, presence flags for all 240 coins and 4 energizers, and their remaining count.
 
 - `StartNewMatch` creates level 1 with score 0 and 3 lives in `PhaseReady`, preserving the session record.
 - `Tick` advances the timed phases by one tick. In `PhaseLevelComplete` it calls `AdvanceLevel` once `PhaseTicks` reaches `LevelClearTicks`; in `PhaseReady` it calls `BeginPlaying` once `PhaseTicks` reaches `ReadyTicks`. It does nothing without a match or in other phases.
@@ -160,5 +172,7 @@ The state tests cover new-match initialization, session record retention, life l
 ```sh
 go test game/state.go game/constants.go game/constsantsmaze.go game/level.go game/state_test.go game/level_test.go
 ```
+
+Persistence unit tests also run without a display: `go test ./highscore`. All filesystem tests use temporary directories, not the user's high-score file.
 
 `go test ./...` also tests bottom-HUD symmetry, spacing, screen bounds, and loading of every bonus sprite, and compiles the graphics integration. It requires Ebitengine's native dependencies and a display on Linux (or a virtual display such as `xvfb-run -a go test ./...`). Actual window rendering and actor gameplay are not covered by these tests.

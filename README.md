@@ -54,6 +54,43 @@ go run .
 The first command downloads dependencies and generates `go.sum`.
 To exit, close the window.
 
+## Persistent high score
+
+The high score is restored on startup and saved at level completion, game over,
+and normal window closure, only when the record has increased.
+Default file locations:
+
+| Platform | File |
+| --- | --- |
+| Linux | `$XDG_DATA_HOME/geckoblu/pacman/highscore` if `XDG_DATA_HOME` is absolute, otherwise `~/.local/share/geckoblu/pacman/highscore` |
+| Windows | `%LOCALAPPDATA%\geckoblu\pacman\highscore` |
+| macOS | `~/Library/Application Support/geckoblu/pacman/highscore` |
+| iOS | `$HOME/Library/Application Support/geckoblu/pacman/highscore`, inside the app sandbox |
+| Android | An explicit file inside the app's private persistent files directory, supplied by the mobile host |
+
+The directory is created automatically. Read/write errors are logged without
+stopping play; an unsaved record is retried at the next checkpoint.
+An abrupt termination can lose progress since the last save. Concurrent game
+instances do not coordinate writes.
+
+### Mobile module integration
+
+The persistence module supports Android and iOS, but this repository still has
+only a desktop entry point: mobile packaging and lifecycle hooks are not included.
+On Android, the native host must obtain `Context.getFilesDir()` and pass a file
+inside that directory to the store, for example:
+
+```go
+store := highscore.New(filepath.Join(appPrivateFilesDir, "highscore"))
+```
+
+`DefaultPath` returns an explicit error on Android rather than guessing a sandbox
+path or using shared storage. On iOS, `DefaultPath` requires an absolute sandbox
+`HOME`; a native host can alternatively supply a file under its Application Support
+directory through `New`. Do not use cache or temporary directories for the record.
+Mobile hosts must connect loading, checkpoints, and background/lifecycle saves;
+mobile process termination does not guarantee a final save callback.
+
 ## Building
 
 ```sh
