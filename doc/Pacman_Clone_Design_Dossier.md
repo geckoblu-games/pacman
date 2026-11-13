@@ -114,6 +114,12 @@ Three sources of points, matching the dossier:
 - **[FACT]** Bonus fruit spawns twice per round: after 70 dots eaten, and after 170 dots eaten. It appears below the ghost house, stays on screen a randomized 9–10 seconds (not a fixed value, and not reproducible via pattern-replay), and is worth a level-dependent amount (see Table in §5.3).
 - **[FACT]** A "fruit/level counter" strip shows the symbols for the last six completed rounds plus the current one, along the bottom of the screen.
 - **[ASSUMPTION]** Chosen HUD layout: the current level symbol occupies the far-right slot, mirrored horizontally from the leftmost reserve-life icon and at the same height. Earlier levels occupy slots every two grid columns to its left. On advancing, the new symbol enters the rightmost slot and the previous symbols shift left, dropping the oldest when more than seven would be visible. Repeated symbols remain separate icons; eating or missing a bonus fruit does not change this counter.
+- **[DECISION]** The eaten-dot count that triggers the fruit includes energizers (244 collectibles total), so the first fruit appears when 174 collectibles remain and the second when 74 remain. Each trigger fires exactly once per level because the count only grows.
+- **[DECISION]** The fruit is centered horizontally on the screen (between columns 13 and 14) and vertically on zero-based row 20, the corridor directly below the ghost house; this is the same horizontal position as Pac-Man's start.
+- **[DECISION]** The visibility duration is drawn uniformly from 540 to 600 ticks inclusive (9–10 s at 60 Hz) from a pseudo-random generator that is independent of the frightened-mode PRNG and is not reseeded at level start or life loss, so fruit timing is not pattern-reproducible, matching the source. The generator is injectable for deterministic tests.
+- **[DECISION]** Pac-Man eats the fruit when his center point lies within half a cell (8 logical pixels) of the fruit's center on both axes, i.e., when the sprites actually overlap, rather than by tile occupancy. Eating the fruit pauses Pac-Man for 1 frame, like a regular dot.
+- **[DECISION]** After the fruit is eaten, its point value replaces it for 2 seconds (120 ticks), rendered in pink with the HUD font because the sprite atlas has no numeric score sprites. The popup is purely visual.
+- **[DECISION]** A visible fruit disappears immediately when Pac-Man loses a life or when the level is cleared, and is not rescheduled; the score popup is likewise discarded. Fruit timers advance only during active play.
 
 ---
 

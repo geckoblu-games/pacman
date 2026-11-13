@@ -1,6 +1,7 @@
 package game
 
 import (
+	"math/rand"
 	"reflect"
 	"testing"
 )
@@ -200,7 +201,170 @@ func TestInactiveStateRejectsGameplay(t *testing.T) {
 	}
 }
 
-// clearLevel consumes every collectible of the current level during active play.
+// eatCoins consumes the next count remaining coins of the current level in CoinCoords order.
+func eatCoins(t *testing.T, state *GameState, count int) {
+	t.Helper()
+	for index := range CoinCoords {
+		if count == 0 {
+			return
+		}
+		if !state.Match.Level.Coins[index] {
+			continue
+		}
+		if !state.ConsumeCollectible(CoinCoords[index][0], CoinCoords[index][1]) {
+			t.Fatalf("failed to consume coin %d", index)
+		}
+		count--
+	}
+	if count > 0 {
+		t.Fatalf("not enough coins left to eat %d more", count)
+	}
+}
+
+// TestFruitSpawnsAtDotThresholds checks the 70/170 triggers, the 9–10 second range,
+// seeded determinism, and expiry.
+func TestFruitSpawnsAtDotThresholds(t *testing.T) {
+	state := GameState{Random: rand.New(rand.NewSource(7))}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	eatCoins(t, &state, FruitFirstDotsEaten-1)
+	if state.Match.Fruit.Visible {
+		t.Fatal("bonus should not appear before 70 collectibles")
+	}
+	eatCoins(t, &state, 1)
+	fruit := state.Match.Fruit
+	if !fruit.Visible || fruit.Ticks < FruitMinTicks || fruit.Ticks > FruitMaxTicks || fruit.ScoreTicks != 0 {
+		t.Fatalf("unexpected bonus after 70 collectibles: %+v", fruit)
+	}
+	other := GameState{Random: rand.New(rand.NewSource(7))}
+	other.StartNewMatch()
+	other.BeginPlaying()
+	eatCoins(t, &other, FruitFirstDotsEaten)
+	if other.Match.Fruit != fruit {
+		t.Fatal("identical seeds should produce identical bonus durations")
+	}
+	for tick := 0; tick < fruit.Ticks-1; tick++ {
+		state.Tick()
+	}
+	if !state.Match.Fruit.Visible || state.Match.Fruit.Ticks != 1 {
+		t.Fatalf("bonus should remain until its last tick: %+v", state.Match.Fruit)
+	}
+	state.Tick()
+	if state.Match.Fruit != (FruitState{}) {
+		t.Fatalf("bonus should expire after its duration: %+v", state.Match.Fruit)
+	}
+	eatCoins(t, &state, FruitSecondDotsEaten-FruitFirstDotsEaten-1)
+	if state.Match.Fruit.Visible {
+		t.Fatal("bonus should not reappear before 170 collectibles")
+	}
+	eatCoins(t, &state, 1)
+	if !state.Match.Fruit.Visible {
+		t.Fatal("bonus should appear after 170 collectibles")
+	}
+	seen := map[int]bool{}
+	for seed := int64(0); seed < 64; seed++ {
+		sample := GameState{Random: rand.New(rand.NewSource(seed))}
+		sample.StartNewMatch()
+		sample.BeginPlaying()
+		eatCoins(t, &sample, FruitFirstDotsEaten)
+		if ticks := sample.Match.Fruit.Ticks; ticks < FruitMinTicks || ticks > FruitMaxTicks {
+			t.Fatalf("seed %d: duration %d outside 540–600 ticks", seed, ticks)
+		}
+		seen[sample.Match.Fruit.Ticks] = true
+	}
+	if len(seen) < 2 {
+		t.Fatal("bonus duration should be randomized")
+	}
+	lazy := GameState{}
+	lazy.StartNewMatch()
+	lazy.BeginPlaying()
+	eatCoins(t, &lazy, FruitFirstDotsEaten)
+	if lazy.Random == nil || !lazy.Match.Fruit.Visible {
+		t.Fatal("a nil generator should be created on first spawn")
+	}
+}
+
+// TestConsumeFruit checks the half-cell overlap rule, scoring, the popup, and the pause.
+func TestConsumeFruit(t *testing.T) {
+	state := GameState{Random: rand.New(rand.NewSource(1))}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	eatCoins(t, &state, FruitFirstDotsEaten)
+	score := state.Match.Score
+	player := &state.Match.PacMan
+	player.EatingPauseTicks = 0
+	player.X, player.Y = FruitX+float64(CellSize)/2+0.01, FruitY
+	if state.ConsumeFruit() || !state.Match.Fruit.Visible {
+		t.Fatal("bonus should not be eaten beyond half a cell")
+	}
+	player.X, player.Y = FruitX-float64(CellSize)/2, FruitY
+	if !state.ConsumeFruit() {
+		t.Fatal("bonus should be eaten within half a cell")
+	}
+	want := FruitState{ScoreTicks: FruitScoreTicks, Points: 100}
+	if state.Match.Fruit != want || state.Match.Score != score+100 || state.HighScore != score+100 {
+		t.Fatalf("unexpected state after eating the bonus: fruit=%+v score=%d", state.Match.Fruit, state.Match.Score)
+	}
+	if player.EatingPauseTicks != pacManFruitPauseTicks {
+		t.Fatalf("expected a %d-tick pause, got %d", pacManFruitPauseTicks, player.EatingPauseTicks)
+	}
+	if state.ConsumeFruit() || state.Match.Score != score+100 {
+		t.Fatal("an eaten bonus should not score again")
+	}
+	for tick := 0; tick < FruitScoreTicks; tick++ {
+		if state.Match.Fruit.ScoreTicks == 0 {
+			t.Fatalf("popup ended early at tick %d", tick)
+		}
+		state.Tick()
+	}
+	if state.Match.Fruit != (FruitState{}) {
+		t.Fatalf("popup should end after %d ticks: %+v", FruitScoreTicks, state.Match.Fruit)
+	}
+	state.Match.Level = NewLevelState(13)
+	state.Match.Fruit = FruitState{Visible: true, Ticks: FruitMinTicks}
+	player.X, player.Y = FruitX, FruitY+float64(CellSize)/2
+	if !state.ConsumeFruit() || state.Match.Fruit.Points != 5000 || state.Match.Score != score+5100 {
+		t.Fatalf("bonus value should follow the level table: %+v", state.Match.Fruit)
+	}
+	state.Match.Fruit = FruitState{Visible: true, Ticks: FruitMinTicks}
+	state.Phase = PhaseReady
+	if state.ConsumeFruit() || !state.Match.Fruit.Visible {
+		t.Fatal("bonus should only be eaten during play")
+	}
+}
+
+// TestFruitClearedOnLifeLossAndLevelChange checks removal on death, level clear, and advancement.
+func TestFruitClearedOnLifeLossAndLevelChange(t *testing.T) {
+	state := GameState{Random: rand.New(rand.NewSource(3))}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	eatCoins(t, &state, FruitFirstDotsEaten)
+	state.LoseLife()
+	if state.Match.Fruit != (FruitState{}) {
+		t.Fatal("losing a life should remove the bonus")
+	}
+	state.BeginPlaying()
+	for tick := 0; tick < FruitMaxTicks; tick++ {
+		state.Tick()
+	}
+	if state.Match.Fruit.Visible {
+		t.Fatal("a removed bonus should not reappear")
+	}
+	eatCoins(t, &state, FruitSecondDotsEaten-FruitFirstDotsEaten)
+	if !state.Match.Fruit.Visible {
+		t.Fatal("the second trigger should still spawn a bonus")
+	}
+	clearLevel(t, &state)
+	if state.Match.Fruit != (FruitState{}) {
+		t.Fatal("completing the level should remove the bonus")
+	}
+	state.Match.Fruit = FruitState{ScoreTicks: 5, Points: 100}
+	state.AdvanceLevel()
+	if state.Match.Fruit != (FruitState{}) {
+		t.Fatal("advancing should reset the bonus state")
+	}
+}
+
 func clearLevel(t *testing.T, state *GameState) {
 	t.Helper()
 	for _, coord := range CoinCoords {

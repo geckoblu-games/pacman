@@ -32,6 +32,9 @@ const (
 // readyColor is the yellow used for the READY! intro message.
 var readyColor = color.RGBA{R: 255, G: 255, B: 0, A: 255}
 
+// fruitScoreColor is the arcade pink used for the bonus score popup.
+var fruitScoreColor = color.RGBA{R: 255, G: 184, B: 255, A: 255}
+
 // ScenePlay handles match input and renders the maze, collectibles, and HUD.
 type ScenePlay struct {
 	// State references the session and match owned by Game.
@@ -75,7 +78,8 @@ func (scene *ScenePlay) Update() error {
 	return nil
 }
 
-// updatePacMan advances the player, consumes the occupied tile, and honors eating pauses.
+// updatePacMan advances the player, consumes the occupied tile and any overlapped
+// bonus, and honors eating pauses.
 func (scene *ScenePlay) updatePacMan(requested Direction) {
 	player := &scene.State.Match.PacMan
 	if player.EatingPauseTicks > 0 {
@@ -85,6 +89,7 @@ func (scene *ScenePlay) updatePacMan(requested Direction) {
 	player.Update(requested, scene.State.Match.Level)
 	column, row := player.OccupiedTile()
 	scene.State.ConsumeCollectible(column, row)
+	scene.State.ConsumeFruit()
 }
 
 // pacManDirection maps held arrow or WASD keys to one buffered cardinal direction.
@@ -103,8 +108,9 @@ func (scene *ScenePlay) pacManDirection() Direction {
 	}
 }
 
-// Draw composes debug backgrounds, walls, collectibles, Pac-Man, the grid, the HUD,
-// and the READY! intro. The maze uses the white walls during white flash segments.
+// Draw composes debug backgrounds, walls, collectibles, the bonus or its score popup,
+// Pac-Man, the grid, the HUD, and the READY! intro. The maze uses the white walls
+// during white flash segments.
 func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	if DebugAllowedPathEnabled {
 		scene.drawDebugAllowedPath(screen)
@@ -116,6 +122,7 @@ func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	}
 	scene.drawCoins(screen)
 	scene.drawEnergizers(screen)
+	scene.drawFruit(screen)
 	if scene.State.Match != nil {
 		scene.pacMan.Draw(screen, scene.State.Match.PacMan)
 	}
@@ -146,6 +153,30 @@ func (scene *ScenePlay) drawReady(screen *ebiten.Image) {
 	op.GeoM.Translate(float64(ScreenWidth)/2, float64(readyRow*CellSize+(CellSize-highScoreFontSize)/2))
 	op.ColorScale.ScaleWithColor(readyColor)
 	text.Draw(screen, "READY!", scene.highScoreFace, op)
+}
+
+// drawFruit draws the visible bonus sprite centered on its position, or the pink
+// value of an eaten bonus centered there while its popup timer runs.
+func (scene *ScenePlay) drawFruit(screen *ebiten.Image) {
+	if scene.State.Match == nil {
+		return
+	}
+	fruit := scene.State.Match.Fruit
+	if fruit.Visible {
+		sprite := scene.images.BonusSymbols[scene.State.Match.Level.Parameters.BonusSymbol]
+		spriteSize := sprite.Bounds().Size()
+		op := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
+		op.GeoM.Translate(FruitX-float64(spriteSize.X)/2, FruitY-float64(spriteSize.Y)/2)
+		screen.DrawImage(sprite, op)
+		return
+	}
+	if fruit.ScoreTicks > 0 {
+		op := &text.DrawOptions{}
+		op.PrimaryAlign = text.AlignCenter
+		op.GeoM.Translate(FruitX, FruitY-float64(highScoreFontSize)/2)
+		op.ColorScale.ScaleWithColor(fruitScoreColor)
+		text.Draw(screen, strconv.Itoa(fruit.Points), scene.highScoreFace, op)
+	}
 }
 
 // bottomHUDPosition centers a life or bonus sprite in a mirrored bottom HUD slot.

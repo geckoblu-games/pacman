@@ -4,11 +4,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-const (
-	// pacManStartRow is the zero-based maze row where Pac-Man is drawn initially.
-	pacManStartRow = 26
-)
-
 // pacManSprite draws Pac-Man from the nine first-row atlas cells.
 type pacManSprite struct {
 	// frames are the directional mouth images and shared closed-mouth image.

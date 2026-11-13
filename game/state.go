@@ -1,5 +1,7 @@
 package game
 
+import "math/rand"
+
 const (
 	// InitialLives counts the active life and reserve lives at the start of a match.
 	InitialLives = 3
@@ -37,6 +39,8 @@ type GameState struct {
 	PhaseTicks int
 	// Match is nil until a match is started.
 	Match *MatchState
+	// Random draws bonus durations; nil creates an unpredictably seeded generator on first use.
+	Random *rand.Rand
 }
 
 // MatchState stores the score, remaining lives, and current level for one match.
@@ -49,6 +53,8 @@ type MatchState struct {
 	Level LevelState
 	// PacMan stores the player's position and movement intent.
 	PacMan PacManState
+	// Fruit stores the current level's bonus visibility and score popup.
+	Fruit FruitState
 }
 
 // StartNewMatch resets score, lives, and level while retaining the session record.
@@ -65,8 +71,8 @@ func (state *GameState) enterPhase(phase Phase) {
 }
 
 // Tick advances the timed phases by one 60 Hz tick: the level-clear flash
-// advances the level after LevelClearTicks and the ready intro begins play after ReadyTicks.
-// Other phases are unaffected.
+// advances the level after LevelClearTicks, the ready intro begins play after ReadyTicks,
+// and active play runs the bonus timers. Other phases are unaffected.
 func (state *GameState) Tick() {
 	if state.Match == nil {
 		return
@@ -82,6 +88,8 @@ func (state *GameState) Tick() {
 		if state.PhaseTicks >= ReadyTicks {
 			state.BeginPlaying()
 		}
+	case PhasePlaying:
+		state.Match.Fruit.Tick()
 	}
 }
 
@@ -116,8 +124,9 @@ func (state *GameState) AddScore(points int) {
 	}
 }
 
-// ConsumeCollectible awards points for a remaining dot and starts the level-clear
-// flash on the final one; Pac-Man keeps his current position for that phase.
+// ConsumeCollectible awards points for a remaining dot, spawns the bonus when the
+// eaten count reaches 70 or 170, and starts the level-clear flash on the final one;
+// Pac-Man keeps his current position for that phase and any bonus is removed.
 // It rejects inactive play and returns whether a coin or energizer was consumed.
 func (state *GameState) ConsumeCollectible(column, row int) bool {
 	if state.Match == nil || state.Phase != PhasePlaying {
@@ -133,31 +142,69 @@ func (state *GameState) ConsumeCollectible(column, row int) bool {
 		state.Match.PacMan.EatingPauseTicks = pacManEnergizerPauseTicks
 	}
 	state.AddScore(points)
+	eaten := len(CoinCoords) + len(EnergizerCoords) - state.Match.Level.Remaining
+	if eaten == FruitFirstDotsEaten || eaten == FruitSecondDotsEaten {
+		state.spawnFruit()
+	}
 	if state.Match.Level.Remaining == 0 {
+		state.Match.Fruit = FruitState{}
 		state.enterPhase(PhaseLevelComplete)
 	}
 	return true
 }
 
-// AdvanceLevel replaces a cleared level, resets Pac-Man to his starting position,
-// and enters the ready intro, preserving score and lives.
+// spawnFruit shows the level's bonus for a random duration between FruitMinTicks
+// and FruitMaxTicks inclusive, discarding any previous score popup.
+func (state *GameState) spawnFruit() {
+	if state.Random == nil {
+		state.Random = rand.New(rand.NewSource(rand.Int63()))
+	}
+	state.Match.Fruit = FruitState{
+		Visible: true,
+		Ticks:   FruitMinTicks + state.Random.Intn(FruitMaxTicks-FruitMinTicks+1),
+	}
+}
+
+// ConsumeFruit awards the level's bonus points when Pac-Man's center overlaps a visible
+// bonus during active play, replacing it with a score popup for FruitScoreTicks and
+// pausing Pac-Man for one tick. It returns whether the bonus was eaten.
+func (state *GameState) ConsumeFruit() bool {
+	if state.Match == nil || state.Phase != PhasePlaying {
+		return false
+	}
+	player := &state.Match.PacMan
+	if !state.Match.Fruit.Overlaps(player.X, player.Y) {
+		return false
+	}
+	points := state.Match.Level.Parameters.BonusPoints
+	state.Match.Fruit = FruitState{ScoreTicks: FruitScoreTicks, Points: points}
+	player.EatingPauseTicks = max(player.EatingPauseTicks, pacManFruitPauseTicks)
+	state.AddScore(points)
+	return true
+}
+
+// AdvanceLevel replaces a cleared level, resets Pac-Man to his starting position and
+// the bonus, and enters the ready intro, preserving score and lives.
 func (state *GameState) AdvanceLevel() bool {
 	if state.Match == nil || state.Phase != PhaseLevelComplete {
 		return false
 	}
 	state.Match.Level = NewLevelState(state.Match.Level.Number + 1)
 	state.Match.PacMan = NewPacManState()
+	state.Match.Fruit = FruitState{}
 	state.enterPhase(PhaseReady)
 	return true
 }
 
-// LoseLife preserves the level and enters the ready intro or game over during active play.
+// LoseLife preserves the level, removes any bonus without rescheduling it, and enters
+// the ready intro or game over during active play.
 func (state *GameState) LoseLife() bool {
 	if state.Match == nil || state.Phase != PhasePlaying {
 		return false
 	}
 	state.Match.Lives--
 	state.Match.PacMan = NewPacManState()
+	state.Match.Fruit = FruitState{}
 	if state.Match.Lives == 0 {
 		state.enterPhase(PhaseGameOver)
 	} else {

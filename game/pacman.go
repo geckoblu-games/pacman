@@ -17,6 +17,8 @@ const (
 	pacManCoinPauseTicks = 1
 	// pacManEnergizerPauseTicks is the movement pause after eating an energizer.
 	pacManEnergizerPauseTicks = 3
+	// pacManStartRow is the zero-based maze row of Pac-Man's starting position.
+	pacManStartRow = 26
 )
 
 // Direction identifies one cardinal direction or no movement.
