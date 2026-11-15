@@ -5,7 +5,7 @@ import (
 	"image/color"
 	"strconv"
 
-	"pacman-ai/assets"
+	"pacman/assets"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"

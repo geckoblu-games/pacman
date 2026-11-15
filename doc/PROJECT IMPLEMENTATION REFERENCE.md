@@ -50,7 +50,7 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. It renders the 
 ### Root files
 
 - `main.go` is the executable entry point. It calculates the initial window dimensions from the game's logical dimensions and scale, sets the title and window icons, constructs the game, restores the high score, and starts Ebitengine's event loop. It supplies the game's save callback and saves again after the event loop returns, including normal window closure and run errors. Asset initialization and run errors are fatal; persistence errors are logged without preventing play or normal exit.
-- `go.mod` declares module `pacman-ai`, Go 1.22.0, and Ebitengine v2.8.8. `go.sum` records dependency checksums.
+- `go.mod` declares module `pacman`, Go 1.22.0, and Ebitengine v2.8.8. `go.sum` records dependency checksums.
 - `README.md` contains user-facing requirements, run/build instructions, and a short project structure overview.
 
 ### `game/`

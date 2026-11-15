@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"pacman-ai/highscore"
+	"pacman/highscore"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )

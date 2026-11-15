@@ -1,4 +1,4 @@
-module pacman-ai
+module pacman
 
 go 1.22.0
 

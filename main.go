@@ -5,9 +5,9 @@ import (
 	"log"
 	"math"
 
-	"pacman-ai/assets"
-	"pacman-ai/game"
-	"pacman-ai/highscore"
+	"pacman/assets"
+	"pacman/game"
+	"pacman/highscore"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
