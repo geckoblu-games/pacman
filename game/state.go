@@ -71,8 +71,16 @@ type MatchState struct {
 	PacMan PacManState
 	// Fruit stores the current level's bonus visibility and score popup.
 	Fruit FruitState
-	// Blinky stores the red ghost and the shared mode schedule.
+	// Blinky stores the red ghost and references the shared mode schedule.
 	Blinky GhostState
+	// Pinky stores the pink ghost and references the same mode schedule.
+	Pinky GhostState
+	// GlobalGhostCounter is active after a death until Clyde is implemented.
+	GlobalGhostCounter bool
+	// GlobalGhostDots counts collectibles eaten since the last death.
+	GlobalGhostDots int
+	// NoDotTicks counts active ticks since a collectible or anti-stall release.
+	NoDotTicks int
 	// GhostStreak counts ghosts captured during the current energizer.
 	GhostStreak int
 	// GhostCapture stores the score popup while a ghost capture is frozen.
@@ -85,12 +93,15 @@ type GhostCaptureState struct {
 	X, Y float64
 	// Points is the score awarded for the capture.
 	Points int
+	// Kind identifies the ghost hidden during the capture.
+	Kind GhostKind
 }
 
 // StartNewMatch resets score, lives, and level while retaining the session record.
 // The new match starts unpaused in the ready intro.
 func (state *GameState) StartNewMatch() {
 	state.Match = &MatchState{Lives: InitialLives, Level: NewLevelState(1), PacMan: NewPacManState(), Blinky: NewBlinky()}
+	state.Match.Pinky = newPinky(state.Match.Blinky.ghostClock, false)
 	state.Paused = false
 	state.enterPhase(PhaseReady)
 }
@@ -122,8 +133,15 @@ func (state *GameState) Tick() {
 	case PhaseGhostCaptured:
 		state.PhaseTicks++
 		if state.PhaseTicks >= GhostCaptureTicks {
-			state.Match.Blinky.Mode = GhostEaten
-			state.Match.Blinky.reversePending = false
+			ghost := &state.Match.Blinky
+			if state.Match.GhostCapture.Kind == GhostPinky {
+				ghost = &state.Match.Pinky
+			}
+			ghost.Mode = GhostEaten
+			ghost.reversePending = false
+			if ghost.houseStage == 3 {
+				ghost.houseStage = 2
+			}
 			state.Match.GhostCapture = GhostCaptureState{}
 			state.enterPhase(PhasePlaying)
 		}
@@ -148,9 +166,20 @@ func (state *GameState) Tick() {
 	case PhasePlaying:
 		state.Match.Fruit.Tick()
 		frightened := state.Match.Blinky.frightTicks > 0
-		state.Match.Blinky.Tick(state.Match.Level)
+		changed, ended := state.Match.Blinky.ghostClock.tick(state.Match.Level)
+		state.Match.Blinky.applyClock(changed, ended)
+		state.Match.Pinky.applyClock(changed, ended)
 		if frightened && state.Match.Blinky.frightTicks == 0 {
 			state.Match.GhostStreak = 0
+		}
+		state.Match.NoDotTicks++
+		limit := 4 * simulationTicksPerSecond
+		if state.Match.Level.Number >= 5 {
+			limit = 3 * simulationTicksPerSecond
+		}
+		if state.Match.NoDotTicks >= limit {
+			state.Match.NoDotTicks = 0
+			state.Match.releasePinky()
 		}
 	}
 }
@@ -178,6 +207,11 @@ func (state *GameState) GhostsVisible() bool {
 		return false
 	}
 	return state.Phase != PhaseDying || state.PhaseTicks < DeathFreezeTicks
+}
+
+// GhostVisible reports whether a particular ghost is visible in the current phase.
+func (state *GameState) GhostVisible(kind GhostKind) bool {
+	return state.GhostsVisible() && (state.Phase != PhaseGhostCaptured || state.Match.GhostCapture.Kind != kind)
 }
 
 // MazeFlashWhite reports whether the level-clear flash currently shows the white maze.
@@ -223,12 +257,20 @@ func (state *GameState) ConsumeCollectible(column, row int) bool {
 	if points == 0 {
 		return false
 	}
+	state.Match.NoDotTicks = 0
+	if state.Match.GlobalGhostCounter {
+		state.Match.GlobalGhostDots++
+		if state.Match.GlobalGhostDots == 7 {
+			state.Match.releasePinky()
+		}
+	}
 	if points == 10 {
 		state.Match.PacMan.EatingPauseTicks = pacManCoinPauseTicks
 	} else if points == 50 {
 		state.Match.PacMan.EatingPauseTicks = pacManEnergizerPauseTicks
 		state.Match.GhostStreak = 0
 		state.Match.Blinky.Frighten(state.Match.Level)
+		state.Match.Pinky.Frighten(state.Match.Level)
 	}
 	state.AddScore(points)
 	eaten := len(CoinCoords) + len(EnergizerCoords) - state.Match.Level.Remaining
@@ -281,6 +323,10 @@ func (state *GameState) AdvanceLevel() bool {
 	state.Match.Level = NewLevelState(state.Match.Level.Number + 1)
 	state.Match.PacMan = NewPacManState()
 	state.Match.Blinky = NewBlinky()
+	state.Match.Pinky = newPinky(state.Match.Blinky.ghostClock, false)
+	state.Match.GlobalGhostCounter = false
+	state.Match.GlobalGhostDots = 0
+	state.Match.NoDotTicks = 0
 	state.Match.GhostStreak = 0
 	state.Match.GhostCapture = GhostCaptureState{}
 	state.Match.Fruit = FruitState{}
@@ -303,6 +349,10 @@ func (state *GameState) finishDeath() {
 	state.Match.PacMan = NewPacManState()
 	state.Match.Blinky = NewBlinky()
 	state.Match.Blinky.ElroySuspended = true
+	state.Match.Pinky = newPinky(state.Match.Blinky.ghostClock, true)
+	state.Match.GlobalGhostCounter = true
+	state.Match.GlobalGhostDots = 0
+	state.Match.NoDotTicks = 0
 	state.Match.GhostStreak = 0
 	state.Match.GhostCapture = GhostCaptureState{}
 	state.Match.Fruit = FruitState{}

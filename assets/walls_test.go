@@ -103,7 +103,35 @@ func TestLoadGameImagesRejectsWallSize(t *testing.T) {
 		if _, err := LoadGameImages(size); err == nil {
 			t.Errorf("expected a wall-size error for %v", size)
 		}
+	}
+}
 
+// TestPinkyFrames checks every directional frame comes from Pinky's atlas row.
+func TestPinkyFrames(t *testing.T) {
+	source, err := LoadImage("classic-tileset.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	images, err := LoadGameImages(image.Pt(448, 576))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for column, frame := range images.PinkyFrames {
+		if frame == nil || frame.Bounds().Size() != image.Pt(classicTilesetTileSize, classicTilesetTileSize) {
+			t.Fatalf("Pinky frame %d has invalid dimensions", column)
+		}
+		pixels := make([]byte, 4*classicTilesetTileSize*classicTilesetTileSize)
+		frame.ReadPixels(pixels)
+		for y := 0; y < classicTilesetTileSize; y++ {
+			for x := 0; x < classicTilesetTileSize; x++ {
+				want := color.RGBAModel.Convert(source.At(column*classicTilesetTileSize+x, 2*classicTilesetTileSize+y)).(color.RGBA)
+				offset := 4 * (y*classicTilesetTileSize + x)
+				got := color.RGBA{R: pixels[offset], G: pixels[offset+1], B: pixels[offset+2], A: pixels[offset+3]}
+				if got != want {
+					t.Fatalf("Pinky frame %d pixel (%d,%d): got %v, want %v", column, x, y, got, want)
+				}
+			}
+		}
 	}
 }
 

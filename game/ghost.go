@@ -20,8 +20,32 @@ const (
 	GhostEaten
 )
 
-// GhostState contains Blinky's renderer-independent movement and mode state.
+// GhostKind identifies a ghost's targeting and house-release behavior.
+type GhostKind uint8
+
+const (
+	// GhostBlinky identifies the red ghost.
+	GhostBlinky GhostKind = iota
+	// GhostPinky identifies the pink ghost.
+	GhostPinky
+)
+
+// ghostClock holds the mode schedule and frightened randomness shared by ghosts.
+type ghostClock struct {
+	// scheduleIndex and scheduleTicks track the shared scatter/chase sequence.
+	scheduleIndex, scheduleTicks int
+	// frightTicks counts remaining frightened ticks, including while eyes return.
+	frightTicks int
+	// random is reset for each level and life.
+	random *rand.Rand
+}
+
+// GhostState contains a ghost's renderer-independent movement and mode state.
 type GhostState struct {
+	// ghostClock is shared by every ghost in the match.
+	*ghostClock
+	// Kind selects the ghost's individual behavior.
+	Kind GhostKind
 	// X and Y are the ghost's center in logical pixels.
 	X, Y float64
 	// Direction is the current direction of travel.
@@ -30,20 +54,16 @@ type GhostState struct {
 	Mode GhostMode
 	// ElroySuspended disables Elroy until Clyde leaves after a death.
 	ElroySuspended bool
-	// scheduleIndex and scheduleTicks track the shared scatter/chase sequence.
-	scheduleIndex, scheduleTicks int
-	// frightTicks counts remaining frightened ticks, including while eyes return.
-	frightTicks int
 	// reversePending defers a mode-change reversal until the next tile entry.
 	reversePending bool
 	// turn is the direction chosen for the center of the currently entered tile.
 	turn Direction
 	// nextTurn is the direction chosen for the center of the next tile.
 	nextTurn Direction
-	// houseStage tracks eyes entering and Blinky leaving the ghost house.
+	// houseStage tracks eyes entering, waiting inside, and leaving the house.
 	houseStage int
-	// random is reset for each level and life.
-	random *rand.Rand
+	// exitRight records a schedule change while the ghost is inside the house.
+	exitRight bool
 	// animationTicks advances independently of movement.
 	animationTicks int
 }
@@ -51,9 +71,22 @@ type GhostState struct {
 // NewBlinky creates Blinky above the ghost-house door, facing left.
 func NewBlinky() GhostState {
 	return GhostState{
-		X: float64(ScreenWidth) / 2, Y: float64(14*CellSize + CellSize/2),
+		ghostClock: &ghostClock{random: rand.New(rand.NewSource(1))},
+		X:          float64(ScreenWidth) / 2, Y: float64(14*CellSize + CellSize/2),
 		Direction: DirectionLeft, turn: DirectionLeft, nextTurn: DirectionLeft,
-		random: rand.New(rand.NewSource(1)),
+	}
+}
+
+// newPinky creates Pinky in the house with the match's shared clock.
+func newPinky(clock *ghostClock, afterDeath bool) GhostState {
+	stage := 3
+	if afterDeath {
+		stage = 4
+	}
+	return GhostState{
+		ghostClock: clock, Kind: GhostPinky,
+		X: float64(ScreenWidth) / 2, Y: float64(17*CellSize + CellSize/2),
+		Direction: DirectionUp, houseStage: stage,
 	}
 }
 
@@ -72,45 +105,63 @@ func ghostSchedule(level int) [8]int {
 }
 
 // scheduledMode reports the active scatter/chase mode independently of fright.
-func (ghost GhostState) scheduledMode() GhostMode {
-	if ghost.scheduleIndex%2 == 0 {
+func (clock ghostClock) scheduledMode() GhostMode {
+	if clock.scheduleIndex%2 == 0 {
 		return GhostScatter
 	}
 	return GhostChase
 }
 
-// Tick advances the mode schedule, frightened timer, and animation at 60 Hz.
-func (ghost *GhostState) Tick(level LevelState) {
-	ghost.animationTicks++
-	if ghost.frightTicks > 0 {
-		ghost.frightTicks--
-		if ghost.frightTicks == 0 && ghost.Mode == GhostFrightened {
-			ghost.Mode = ghost.scheduledMode()
-		}
-		return
+// tick advances the shared clock and reports schedule changes and fright expiration.
+func (clock *ghostClock) tick(level LevelState) (bool, bool) {
+	if clock.frightTicks > 0 {
+		clock.frightTicks--
+		return false, clock.frightTicks == 0
 	}
 	durations := ghostSchedule(level.Number)
-	if ghost.scheduleIndex >= len(durations)-1 {
-		return
+	if clock.scheduleIndex >= len(durations)-1 {
+		return false, false
 	}
-	ghost.scheduleTicks++
-	if ghost.scheduleTicks >= durations[ghost.scheduleIndex] {
-		ghost.scheduleTicks = 0
-		ghost.scheduleIndex++
-		if ghost.Mode != GhostEaten && ghost.houseStage == 0 {
-			ghost.Mode = ghost.scheduledMode()
+	clock.scheduleTicks++
+	if clock.scheduleTicks >= durations[clock.scheduleIndex] {
+		clock.scheduleTicks = 0
+		clock.scheduleIndex++
+		return true, false
+	}
+	return false, false
+}
+
+// applyClock advances animation and applies shared mode transitions to this ghost.
+func (ghost *GhostState) applyClock(changed, frightEnded bool) {
+	ghost.animationTicks++
+	if frightEnded && ghost.Mode == GhostFrightened {
+		ghost.Mode = ghost.scheduledMode()
+	}
+	if changed && ghost.Mode != GhostEaten {
+		ghost.Mode = ghost.scheduledMode()
+		if ghost.houseStage == 0 {
 			ghost.reversePending = true
+		} else {
+			ghost.exitRight = true
 		}
 	}
+}
+
+// Tick advances the shared clock and this ghost; matches tick all ghosts together.
+func (ghost *GhostState) Tick(level LevelState) {
+	changed, ended := ghost.ghostClock.tick(level)
+	ghost.applyClock(changed, ended)
 }
 
 // Frighten resets the vulnerability timer and signals a reversal on energizer consumption.
 func (ghost *GhostState) Frighten(level LevelState) {
 	ghost.frightTicks = level.Parameters.FrightTimeSeconds * simulationTicksPerSecond
-	if ghost.Mode == GhostEaten || ghost.houseStage != 0 {
+	if ghost.Mode == GhostEaten {
 		return
 	}
-	ghost.reversePending = true
+	if ghost.houseStage == 0 {
+		ghost.reversePending = true
+	}
 	if ghost.frightTicks > 0 {
 		ghost.Mode = GhostFrightened
 	}
@@ -131,7 +182,7 @@ func (ghost GhostState) OccupiedTile() (int, int) {
 
 // elroyStage returns Blinky's active speed stage for the remaining collectibles.
 func (ghost GhostState) elroyStage(level LevelState) int {
-	if ghost.ElroySuspended {
+	if ghost.Kind != GhostBlinky || ghost.ElroySuspended {
 		return 0
 	}
 	if level.Remaining <= level.Parameters.Elroy2DotsLeft {
@@ -143,7 +194,7 @@ func (ghost GhostState) elroyStage(level LevelState) int {
 	return 0
 }
 
-// speedPercent selects the mode, tunnel, or Elroy speed for Blinky.
+// speedPercent selects the mode, tunnel, or Blinky's Elroy speed.
 func (ghost GhostState) speedPercent(level LevelState) int {
 	if ghost.Mode == GhostEaten {
 		return 200
@@ -165,15 +216,30 @@ func (ghost GhostState) speedPercent(level LevelState) int {
 	}
 }
 
-// target returns the current tile sought by Blinky.
+// target returns the current tile sought by the ghost.
 func (ghost GhostState) target(level LevelState, player PacManState) (int, int) {
 	if ghost.Mode == GhostEaten {
 		return 13, 14
 	}
 	if ghost.Mode == GhostScatter && ghost.elroyStage(level) == 0 {
+		if ghost.Kind == GhostPinky {
+			return 2, 0
+		}
 		return 25, 0
 	}
-	return player.OccupiedTile()
+	x, y := player.OccupiedTile()
+	if ghost.Kind == GhostPinky {
+		direction := player.Direction
+		if direction == DirectionNone {
+			direction = player.lastDirection
+		}
+		dx, dy := directionDelta(direction)
+		x, y = x+4*dx, y+4*dy
+		if direction == DirectionUp {
+			x -= 4
+		}
+	}
+	return x, y
 }
 
 // ghostDirection chooses a legal exit using the common ghost lookahead rules.
@@ -286,7 +352,7 @@ func (ghost *GhostState) Update(level LevelState, player PacManState) {
 	}
 }
 
-// moveInHouse returns eyes through the door and sends revived Blinky back out.
+// moveInHouse returns eyes through the door and moves released ghosts outside.
 func (ghost *GhostState) moveInHouse(distance float64) {
 	centerX := float64(ScreenWidth) / 2
 	topY := float64(14*CellSize + CellSize/2)
@@ -302,20 +368,36 @@ func (ghost *GhostState) moveInHouse(distance float64) {
 		ghost.Direction = DirectionDown
 		ghost.Y = math.Min(insideY, ghost.Y+distance)
 		if ghost.Y == insideY {
-			ghost.houseStage = 3
+			ghost.houseStage = 4
 			ghost.Mode = ghost.scheduledMode()
+			ghost.exitRight = false
+			if ghost.Kind == GhostBlinky {
+				ghost.houseStage = 3
+			}
 		}
 	case 3:
 		ghost.Direction = DirectionUp
 		ghost.Y = math.Max(topY, ghost.Y-distance)
 		if ghost.Y == topY {
 			ghost.houseStage = 0
-			ghost.Direction, ghost.turn, ghost.nextTurn = DirectionLeft, DirectionLeft, DirectionLeft
+			direction := DirectionLeft
+			if ghost.exitRight {
+				direction = DirectionRight
+			}
+			ghost.Direction, ghost.turn, ghost.nextTurn = direction, direction, direction
+			ghost.reversePending, ghost.exitRight = false, false
 		}
 	}
 }
 
-// UpdateActors advances both actors and checks one discrete tile collision per tick.
+// releasePinky starts Pinky's exit only when she is waiting in the house.
+func (match *MatchState) releasePinky() {
+	if match.Pinky.houseStage == 4 {
+		match.Pinky.houseStage = 3
+	}
+}
+
+// UpdateActors advances the actors and checks discrete tile collisions per tick.
 func (state *GameState) UpdateActors(requested Direction, ghostMovement bool) {
 	if state.Match == nil || state.Phase != PhasePlaying || state.Paused {
 		return
@@ -338,19 +420,27 @@ func (state *GameState) UpdateActors(requested Direction, ghostMovement bool) {
 	}
 	if ghostMovement {
 		match.Blinky.Update(match.Level, match.PacMan)
+		match.Pinky.Update(match.Level, match.PacMan)
+	}
+	if !match.GlobalGhostCounter {
+		match.releasePinky()
 	}
 	playerX, playerY := match.PacMan.OccupiedTile()
-	ghostX, ghostY := match.Blinky.OccupiedTile()
-	if playerX != ghostX || playerY != ghostY || match.Blinky.Mode == GhostEaten || match.Blinky.houseStage != 0 {
+	for _, ghost := range []*GhostState{&match.Blinky, &match.Pinky} {
+		ghostX, ghostY := ghost.OccupiedTile()
+		outside := ghost.houseStage == 0 || (ghost.houseStage == 3 && isWalkable(ghostX, ghostY))
+		if playerX != ghostX || playerY != ghostY || ghost.Mode == GhostEaten || !outside {
+			continue
+		}
+		if ghost.Mode == GhostFrightened {
+			points := 200 << min(match.GhostStreak, 3)
+			match.GhostStreak++
+			match.GhostCapture = GhostCaptureState{X: ghost.X, Y: ghost.Y, Points: points, Kind: ghost.Kind}
+			state.AddScore(points)
+			state.enterPhase(PhaseGhostCaptured)
+		} else {
+			state.LoseLife()
+		}
 		return
-	}
-	if match.Blinky.Mode == GhostFrightened {
-		points := 200 << min(match.GhostStreak, 3)
-		match.GhostStreak++
-		match.GhostCapture = GhostCaptureState{X: match.Blinky.X, Y: match.Blinky.Y, Points: points}
-		state.AddScore(points)
-		state.enterPhase(PhaseGhostCaptured)
-	} else {
-		state.LoseLife()
 	}
 }

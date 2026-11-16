@@ -104,7 +104,7 @@ func (scene *ScenePlay) pacManDirection() Direction {
 }
 
 // Draw composes debug backgrounds, walls, collectibles, the bonus or its score popup,
-// Pac-Man, Blinky, the grid, the HUD, and the READY! intro or PAUSED message. The maze uses
+// Pac-Man, ghosts, the grid, the HUD, and the READY! intro or PAUSED message. The maze uses
 // the white walls during white flash segments.
 func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	if DebugAllowedPathEnabled {
@@ -122,8 +122,11 @@ func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 		if scene.State.PacManVisible() {
 			scene.pacMan.Draw(screen, scene.State.Match.PacMan, scene.State.DeathFrame())
 		}
-		if scene.State.GhostsVisible() && scene.State.Phase != PhaseGhostCaptured {
-			scene.drawBlinky(screen, scene.State.Match.Blinky, scene.State.Match.Level)
+		if scene.State.GhostVisible(GhostBlinky) {
+			scene.drawGhost(screen, scene.State.Match.Blinky, scene.State.Match.Level)
+		}
+		if scene.State.GhostVisible(GhostPinky) {
+			scene.drawGhost(screen, scene.State.Match.Pinky, scene.State.Match.Level)
 		}
 	}
 	scene.drawGhostCaptureScore(screen)
@@ -161,8 +164,8 @@ func (scene *ScenePlay) drawGhostCaptureScore(screen *ebiten.Image) {
 	}
 }
 
-// drawBlinky draws the current ghost frame, including a wrapped tunnel copy.
-func (scene *ScenePlay) drawBlinky(screen *ebiten.Image, ghost GhostState, level LevelState) {
+// drawGhost draws the current ghost frame, including a wrapped tunnel copy.
+func (scene *ScenePlay) drawGhost(screen *ebiten.Image, ghost GhostState, level LevelState) {
 	direction := 3
 	switch ghost.Direction {
 	case DirectionUp:
@@ -173,6 +176,9 @@ func (scene *ScenePlay) drawBlinky(screen *ebiten.Image, ghost GhostState, level
 		direction = 2
 	}
 	frame := scene.images.BlinkyFrames[direction*2+(ghost.animationTicks/6)%2]
+	if ghost.Kind == GhostPinky {
+		frame = scene.images.PinkyFrames[direction*2+(ghost.animationTicks/6)%2]
+	}
 	if ghost.Mode == GhostEaten {
 		frame = scene.images.GhostEyes[direction]
 	} else if ghost.Mode == GhostFrightened {
