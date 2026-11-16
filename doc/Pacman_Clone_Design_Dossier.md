@@ -174,7 +174,7 @@ Three sources of points, matching the dossier:
 - Target tile = Pac-Man's current tile, directly. The simplest and most aggressive scheme.
 - Special "**Cruise Elroy**" behavior: on each level, once remaining dots fall at/below a level-defined threshold ("Elroy 1"), Blinky speeds up to at least Pac-Man's speed; at a second, lower threshold ("Elroy 2"), he speeds up again to faster than Pac-Man. While in Elroy state, Blinky's *scatter* target also switches to Pac-Man's tile (i.e., he keeps chasing even during scatter periods), though he still obeys forced reversals at mode changes.
 - **[FACT]** Elroy status is suspended after Pac-Man loses a life, until Clyde is seen exiting the ghost house again; only then does Elroy tracking resume based on the current dot count.
-- **[DECISION]** While Clyde is not implemented, suspend Elroy for the rest of the current level after a life is lost. A new level or match enables it again. Restore the Clyde-exit rule when Clyde is introduced; do not simulate an invisible Clyde release.
+- **[DECISION]** Before Clyde was implemented, Elroy remained suspended for the rest of the level after a life was lost. With Clyde present, restore the normal Clyde-exit rule instead.
 - See `Blinky.png` for the direct-targeting illustration.
 
 **Pinky ("Speedy")** — **[FACT]**
@@ -255,6 +255,8 @@ This is one of the most detail-dense subsystems in the dossier and deserves expl
 - **[FACT]** Blinky starts just outside, above the ghost house door. Inky, Pinky, Clyde start inside (left, middle, right respectively). See `StartPositions.png`.
 - **[FACT]** Once a ghost leaves the house, it cannot re-enter except as "eyes" after being eaten by Pac-Man, in which case it travels to the fixed "return home" target tile (§4.5), re-enters, and is revived (then exits again, resetting to normal mode).
 - **[FACT]** Because Blinky starts outside, he is functionally never subject to the house-release logic below except after being eaten.
+- **[FACT]** Ghosts waiting in the house bounce vertically; the source dossier specifically describes Clyde bouncing until he moves toward the exit.
+- **[DECISION]** Use a fixed 40% of base speed for this bounce at every level and in every mode, as chosen by the project owner. The implementation uses center positions from rows 17 to 18 in the 16-pixel grid and begins exiting immediately from the current height. Both the speed and bounds are approximations, not verified pixel-exact arcade behavior.
 
 ### 6.2 Release Conditions (Pinky, Inky, Clyde)
 Two independent, concurrently-active controls govern when a ghost leaves the house:
@@ -262,11 +264,12 @@ Two independent, concurrently-active controls govern when a ghost leaves the hou
 **A. Per-ghost dot counters (level-start condition)**
 - **[FACT]** Each of the 3 ghosts has a personal counter and a level-specific dot limit. Only one ghost's counter is "active" at a time, in preference order Pinky > Inky > Clyde; as soon as the active ghost reaches/exceeds its limit, it exits and the next most-preferred waiting ghost's counter activates.
 - **[FACT]** Limits by level: Pinky's limit is always 0 (leaves immediately). Level 1: Inky = 30, Clyde = 60. Level 2: Inky = 0, Clyde = 50. Level 3+: all three = 0 (all leave immediately at level start).
-- **[DECISION]** Preserve the arcade release rules after Inky revives, rather than always sending him out immediately. In particular, if he was forced out on level 1 before reaching 30 dots, his retained personal count resumes when he returns; the anti-stall timer can still release him.
+- **[DECISION]** Preserve the arcade release rules after Inky or Clyde revives, rather than always sending them out immediately. In particular, if Inky was forced out on level 1 before reaching 30 dots, his retained personal count resumes when he returns; the anti-stall timer can still release him.
 
 **B. Global dot counter (post-death condition)**
-- **[FACT]** After a life is lost, per-ghost counters are disabled (not reset) and replaced by a single global counter, reset to 0, counting dots eaten since the respawn. Pinky releases at count = 7, Inky at count = 17. Clyde's release and the deactivation of the global counter both happen when the count = 32 **and** Clyde is still inside the house at that moment — if Clyde has already left before reaching 32 (e.g., forced out by the timer, below), the global counter is **not** deactivated and keeps counting indefinitely, with no further release checkpoints defined.
-- **[DECISION]** Until Clyde is implemented, keep the global counter active after a life is lost rather than simulate Clyde's release at 32. Pinky and Inky can be released at their respective 7- and 17-dot checkpoints or by the anti-stall timer; after a checkpoint has passed, only the anti-stall timer can release that ghost again. Restore the Clyde-presence rule when Clyde is introduced.
+- **[FACT]** After a life is lost, per-ghost counters are disabled (not reset) and replaced by a single global counter, reset to 0, counting dots eaten since the respawn. Pinky releases at count = 7, Inky at count = 17. At count = 32, the global counter resets and deactivates only if Clyde is still waiting in the house; if Clyde has already started leaving (e.g., forced out by the timer, below), the counter remains active and keeps counting indefinitely, with no further release checkpoints defined.
+- **[DECISION]** At 32 with Clyde waiting, re-enable the retained personal counters and apply their normal limits and priority; Clyde does not automatically leave unless his personal limit permits it. This follows the source dossier's description and resolves the earlier project-dossier wording that said Clyde always leaves at 32.
+- **[DECISION]** Before Clyde was implemented, the global counter remained active after a life was lost rather than simulating his release at 32. With Clyde present, use the presence rule above.
 
 **C. "No-dot-eaten" timer (anti-stalling safeguard)**
 - **[FACT]** A continuously running timer, reset to 0 every time a dot is eaten, forces the most-preferred waiting ghost out immediately if it ever reaches its limit (4 seconds initially, 3 seconds from level 5 onward) — this prevents a player from indefinitely trapping ghosts by refusing to eat dots.
@@ -331,7 +334,7 @@ Before considering the clone "faithful," verify each of the following observable
 
 **Ghost House**
 - [ ] At level start, Pinky/Inky/Clyde leave in the documented order and timing for levels 1, 2, and 3+ respectively.
-- [ ] After a death, the global dot counter governs releases at 7/17/32 and the Clyde-presence condition for deactivation behaves as documented.
+- [ ] After a death, the global counter governs Pinky's and Inky's releases at 7/17; at 32 the Clyde-presence condition and restoration of personal counters behave as documented.
 - [ ] The anti-stall timer (4s/3s) forces a release if dots go uneaten too long.
 - [ ] Ghosts exit left normally, right if a mode change happened while they waited inside.
 

@@ -131,6 +131,9 @@ func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 		if scene.State.GhostVisible(GhostInky) {
 			scene.drawGhost(screen, scene.State.Match.Inky, scene.State.Match.Level)
 		}
+		if scene.State.GhostVisible(GhostClyde) {
+			scene.drawGhost(screen, scene.State.Match.Clyde, scene.State.Match.Level)
+		}
 	}
 	scene.drawGhostCaptureScore(screen)
 	if DebugGridEnabled {
@@ -184,6 +187,8 @@ func (scene *ScenePlay) drawGhost(screen *ebiten.Image, ghost GhostState, level 
 		frame = scene.images.PinkyFrames[direction*2+(ghost.animationTicks/6)%2]
 	case GhostInky:
 		frame = scene.images.InkyFrames[direction*2+(ghost.animationTicks/6)%2]
+	case GhostClyde:
+		frame = scene.images.ClydeFrames[direction*2+(ghost.animationTicks/6)%2]
 	}
 	if ghost.Mode == GhostEaten {
 		frame = scene.images.GhostEyes[direction]

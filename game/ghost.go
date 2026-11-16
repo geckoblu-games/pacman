@@ -6,13 +6,21 @@ import (
 	"math/rand"
 )
 
+const (
+	// ghostHouseBounceSpeedPercent is the fixed waiting speed as a percentage of base speed.
+	ghostHouseBounceSpeedPercent = 40
+	// ghostHouseBounceTop and ghostHouseBounceBottom bound the waiting center in logical pixels.
+	ghostHouseBounceTop    = 17 * CellSize
+	ghostHouseBounceBottom = 18 * CellSize
+)
+
 // GhostMode identifies the ghost's current behavior.
 type GhostMode uint8
 
 const (
 	// GhostScatter targets the ghost's home corner.
 	GhostScatter GhostMode = iota
-	// GhostChase targets Pac-Man.
+	// GhostChase uses the ghost's pursuit target.
 	GhostChase
 	// GhostFrightened wanders and can be eaten.
 	GhostFrightened
@@ -30,6 +38,8 @@ const (
 	GhostPinky
 	// GhostInky identifies the cyan ghost.
 	GhostInky
+	// GhostClyde identifies the orange ghost.
+	GhostClyde
 )
 
 // ghostClock holds the mode schedule and frightened randomness shared by ghosts.
@@ -99,6 +109,15 @@ func newInky(blinky *GhostState) GhostState {
 	return GhostState{
 		ghostClock: blinky.ghostClock, blinky: blinky, Kind: GhostInky,
 		X: float64(ScreenWidth)/2 - 2*CellSize, Y: float64(17*CellSize + CellSize/2),
+		Direction: DirectionUp, houseStage: 4,
+	}
+}
+
+// newClyde creates Clyde on the right side of the house with the shared clock.
+func newClyde(clock *ghostClock) GhostState {
+	return GhostState{
+		ghostClock: clock, Kind: GhostClyde,
+		X: float64(ScreenWidth)/2 + 2*CellSize, Y: float64(17*CellSize + CellSize/2),
 		Direction: DirectionUp, houseStage: 4,
 	}
 }
@@ -240,10 +259,19 @@ func (ghost GhostState) target(level LevelState, player PacManState) (int, int) 
 			return 2, 0
 		case GhostInky:
 			return 27, 35
+		case GhostClyde:
+			return 0, 35
 		}
 		return 25, 0
 	}
 	x, y := player.OccupiedTile()
+	if ghost.Kind == GhostClyde {
+		gx, gy := ghost.OccupiedTile()
+		dx, dy := x-gx, y-gy
+		if dx*dx+dy*dy < 64 {
+			return 0, 35
+		}
+	}
 	if ghost.Kind == GhostPinky || ghost.Kind == GhostInky {
 		direction := player.Direction
 		if direction == DirectionNone {
@@ -321,6 +349,9 @@ func (ghost *GhostState) planTurn(column, row int, direction Direction, level Le
 func (ghost *GhostState) Update(level LevelState, player PacManState) {
 	distance := actorSpeed(ghost.speedPercent(level))
 	if ghost.houseStage != 0 {
+		if ghost.houseStage == 4 {
+			distance = actorSpeed(ghostHouseBounceSpeedPercent)
+		}
 		ghost.moveInHouse(distance)
 		return
 	}
@@ -376,7 +407,7 @@ func (ghost *GhostState) Update(level LevelState, player PacManState) {
 	}
 }
 
-// moveInHouse returns eyes through the door and moves released ghosts outside.
+// moveInHouse returns eyes, bounces waiting ghosts, and moves released ghosts outside.
 func (ghost *GhostState) moveInHouse(distance float64) {
 	centerX := float64(ScreenWidth) / 2
 	topY := float64(14*CellSize + CellSize/2)
@@ -395,6 +426,7 @@ func (ghost *GhostState) moveInHouse(distance float64) {
 			ghost.houseStage = 4
 			ghost.Mode = ghost.scheduledMode()
 			ghost.exitRight = false
+			ghost.Direction = DirectionUp
 			if ghost.Kind == GhostBlinky {
 				ghost.houseStage = 3
 			}
@@ -411,9 +443,44 @@ func (ghost *GhostState) moveInHouse(distance float64) {
 			ghost.Direction, ghost.turn, ghost.nextTurn = direction, direction, direction
 			ghost.reversePending, ghost.exitRight = false, false
 		}
+	case 4:
+		if ghost.Y < ghostHouseBounceTop || ghost.Y > ghostHouseBounceBottom {
+			panic(fmt.Sprintf("waiting ghost outside bounce bounds at y=%v", ghost.Y))
+		}
+		for distance > 0 {
+			switch ghost.Direction {
+			case DirectionUp:
+				remaining := ghost.Y - float64(ghostHouseBounceTop)
+				if distance >= remaining {
+					ghost.Y = ghostHouseBounceTop
+					distance -= remaining
+					ghost.Direction = DirectionDown
+				} else {
+					ghost.Y -= distance
+					distance = 0
+				}
+			case DirectionDown:
+				remaining := float64(ghostHouseBounceBottom) - ghost.Y
+				if distance >= remaining {
+					ghost.Y = ghostHouseBounceBottom
+					distance -= remaining
+					ghost.Direction = DirectionUp
+				} else {
+					ghost.Y += distance
+					distance = 0
+				}
+			default:
+				panic(fmt.Sprintf("waiting ghost has invalid direction %d", ghost.Direction))
+			}
+		}
 	case 5:
-		ghost.Direction = DirectionRight
-		ghost.X = math.Min(centerX, ghost.X+distance)
+		if ghost.X < centerX {
+			ghost.Direction = DirectionRight
+			ghost.X = math.Min(centerX, ghost.X+distance)
+		} else {
+			ghost.Direction = DirectionLeft
+			ghost.X = math.Max(centerX, ghost.X-distance)
+		}
 		if ghost.X == centerX {
 			ghost.houseStage = 3
 		}
@@ -430,8 +497,16 @@ func (match *MatchState) releasePinky() {
 // startExit moves a waiting ghost to the center before leaving the house.
 func (ghost *GhostState) startExit() {
 	ghost.houseStage = 3
-	if ghost.X < float64(ScreenWidth)/2 {
+	if ghost.X != float64(ScreenWidth)/2 {
 		ghost.houseStage = 5
+	}
+}
+
+// releaseClyde starts his exit and restores Blinky's Elroy behavior.
+func (match *MatchState) releaseClyde() {
+	if match.Clyde.houseStage == 4 {
+		match.Clyde.startExit()
+		match.Blinky.ElroySuspended = false
 	}
 }
 
@@ -445,8 +520,21 @@ func (match *MatchState) releasePersonalGhosts() {
 	if match.Level.Number == 1 {
 		limit = 30
 	}
-	if match.Inky.houseStage == 4 && match.InkyDots >= limit {
+	if match.Inky.houseStage == 4 {
+		if match.InkyDots < limit {
+			return
+		}
 		match.Inky.startExit()
+	}
+	limit = 0
+	switch match.Level.Number {
+	case 1:
+		limit = 60
+	case 2:
+		limit = 50
+	}
+	if match.Clyde.houseStage == 4 && match.ClydeDots >= limit {
+		match.releaseClyde()
 	}
 }
 
@@ -456,6 +544,8 @@ func (match *MatchState) releaseWaitingGhost() {
 		match.releasePinky()
 	} else if match.Inky.houseStage == 4 {
 		match.Inky.startExit()
+	} else if match.Clyde.houseStage == 4 {
+		match.releaseClyde()
 	}
 }
 
@@ -484,10 +574,11 @@ func (state *GameState) UpdateActors(requested Direction, ghostMovement bool) {
 		match.Blinky.Update(match.Level, match.PacMan)
 		match.Pinky.Update(match.Level, match.PacMan)
 		match.Inky.Update(match.Level, match.PacMan)
+		match.Clyde.Update(match.Level, match.PacMan)
 	}
 	match.releasePersonalGhosts()
 	playerX, playerY := match.PacMan.OccupiedTile()
-	for _, ghost := range []*GhostState{&match.Blinky, &match.Pinky, &match.Inky} {
+	for _, ghost := range []*GhostState{&match.Blinky, &match.Pinky, &match.Inky, &match.Clyde} {
 		ghostX, ghostY := ghost.OccupiedTile()
 		outside := ghost.houseStage == 0 || (ghost.houseStage == 3 && isWalkable(ghostX, ghostY))
 		if playerX != ghostX || playerY != ghostY || ghost.Mode == GhostEaten || !outside {

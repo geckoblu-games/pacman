@@ -553,7 +553,7 @@ func TestPinkySharedModes(t *testing.T) {
 	}
 }
 
-// TestPinkyHouseRelease checks startup, post-death checkpoints, and the persistent counter.
+// TestPinkyHouseRelease checks checkpoints when Clyde leaves before 32 dots.
 func TestPinkyHouseRelease(t *testing.T) {
 	state := GameState{}
 	state.StartNewMatch()
@@ -568,6 +568,7 @@ func TestPinkyHouseRelease(t *testing.T) {
 	if !match.GlobalGhostCounter || match.Pinky.houseStage != 4 {
 		t.Fatal("Pinky should wait for the global counter after a death")
 	}
+	match.releaseClyde()
 	for index, coord := range CoinCoords[:32] {
 		if !state.ConsumeCollectible(coord[0], coord[1]) {
 			t.Fatalf("dot %d was not consumed", index+1)
@@ -580,7 +581,7 @@ func TestPinkyHouseRelease(t *testing.T) {
 		}
 	}
 	if !match.GlobalGhostCounter || match.GlobalGhostDots != 32 {
-		t.Fatal("the global counter must remain active without Clyde")
+		t.Fatal("the global counter must remain active when Clyde left before 32 dots")
 	}
 	match.Pinky.houseStage = 4
 	for range 239 {
@@ -909,6 +910,7 @@ func TestInkyPostDeathRelease(t *testing.T) {
 	if match.InkyDots != 3 || match.Inky.houseStage != 4 || !match.GlobalGhostCounter {
 		t.Fatal("death should preserve but disable Inky's personal counter")
 	}
+	match.releaseClyde()
 	for index, coord := range CoinCoords[3:35] {
 		state.ConsumeCollectible(coord[0], coord[1])
 		if index == 15 && match.Inky.houseStage != 4 {
@@ -919,7 +921,7 @@ func TestInkyPostDeathRelease(t *testing.T) {
 		}
 	}
 	if !match.GlobalGhostCounter || match.InkyDots != 3 {
-		t.Fatal("Clyde's absence should keep the global counter active and personal count unchanged")
+		t.Fatal("Clyde leaving early should keep the global counter active and personal count unchanged")
 	}
 	match.Inky.houseStage = 4
 	match.Inky.X = float64(ScreenWidth) / 2
@@ -935,7 +937,7 @@ func TestInkyPostDeathRelease(t *testing.T) {
 	}
 }
 
-// TestInkyReleasePriority checks only the highest-priority waiting ghost is forced out.
+// TestInkyReleasePriority checks waiting ghosts leave in priority order.
 func TestInkyReleasePriority(t *testing.T) {
 	state := GameState{}
 	state.StartNewMatch()
@@ -954,6 +956,15 @@ func TestInkyReleasePriority(t *testing.T) {
 	}
 	if state.Match.Inky.houseStage != 5 {
 		t.Fatal("the next timeout should release Inky")
+	}
+	if !state.Match.Blinky.ElroySuspended {
+		t.Fatal("Elroy should remain suspended before Clyde starts exiting")
+	}
+	for range 240 {
+		state.Tick()
+	}
+	if state.Match.Clyde.houseStage != 5 || state.Match.Blinky.ElroySuspended {
+		t.Fatal("the third timeout should release Clyde and restore Elroy")
 	}
 }
 
@@ -1072,33 +1083,35 @@ func TestInkyDoorCollision(t *testing.T) {
 	}
 }
 
-// TestThreeGhostCaptureSequence checks a single energizer awards 200, 400, and 800.
-func TestThreeGhostCaptureSequence(t *testing.T) {
+// TestFourGhostCaptureSequence checks all four scores on each of four energizers.
+func TestFourGhostCaptureSequence(t *testing.T) {
 	state := GameState{}
 	state.StartNewMatch()
 	state.BeginPlaying()
 	match := state.Match
-	match.Pinky.houseStage, match.Inky.houseStage = 0, 0
-	for index, ghost := range []*GhostState{&match.Blinky, &match.Pinky, &match.Inky} {
-		ghost.X = float64((3+index)*CellSize + CellSize/2)
-		ghost.Y = float64(4*CellSize + CellSize/2)
-	}
-	coord := EnergizerCoords[0]
-	state.ConsumeCollectible(coord[0], coord[1])
-	for index, ghost := range []*GhostState{&match.Blinky, &match.Pinky, &match.Inky} {
-		match.PacMan.X, match.PacMan.Y = ghost.X, ghost.Y
-		match.PacMan.EatingPauseTicks = 1
-		state.UpdateActors(DirectionNone, false)
-		want := 200 << index
-		if state.Phase != PhaseGhostCaptured || match.GhostCapture.Kind != ghost.Kind || match.GhostCapture.Points != want {
-			t.Fatalf("capture %d should award %d points for ghost %v", index+1, want, ghost.Kind)
+	ghosts := []*GhostState{&match.Blinky, &match.Pinky, &match.Inky, &match.Clyde}
+	for pellet, coord := range EnergizerCoords {
+		for index, ghost := range ghosts {
+			ghost.houseStage, ghost.Mode = 0, GhostScatter
+			ghost.X = float64((3+index)*CellSize + CellSize/2)
+			ghost.Y = float64(4*CellSize + CellSize/2)
 		}
-		for range GhostCaptureTicks {
-			state.Tick()
+		state.ConsumeCollectible(coord[0], coord[1])
+		for index, ghost := range ghosts {
+			match.PacMan.X, match.PacMan.Y = ghost.X, ghost.Y
+			match.PacMan.EatingPauseTicks = 1
+			state.UpdateActors(DirectionNone, false)
+			want := 200 << index
+			if state.Phase != PhaseGhostCaptured || match.GhostCapture.Kind != ghost.Kind || match.GhostCapture.Points != want {
+				t.Fatalf("energizer %d capture %d should award %d points for ghost %v", pellet+1, index+1, want, ghost.Kind)
+			}
+			for range GhostCaptureTicks {
+				state.Tick()
+			}
 		}
 	}
-	if match.Score != 1450 || match.GhostStreak != 3 {
-		t.Fatal("three captures and an energizer should award 1450 points")
+	if match.Score != 12200 || match.GhostStreak != 4 {
+		t.Fatal("16 captures and four energizers should award 12200 points, without an extra bonus")
 	}
 }
 
@@ -1138,5 +1151,554 @@ func TestInkyNavigationAndFreeze(t *testing.T) {
 	}
 	if !exited {
 		t.Fatal("Inky did not leave the house")
+	}
+}
+
+// TestClydeTarget checks the eight-tile threshold and scatter and eye targets.
+func TestClydeTarget(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	match := state.Match
+	match.Level.Remaining = 1
+	match.Clyde.Mode = GhostChase
+	match.Clyde.X, match.Clyde.Y = float64(10*CellSize+CellSize/2), float64(10*CellSize+CellSize/2)
+	for _, test := range []struct {
+		// dx and dy are Pac-Man's tile offsets from Clyde.
+		dx, dy int
+		// chase indicates the expected target is Pac-Man.
+		chase bool
+	}{
+		{7, 0, false},
+		{8, 0, true},
+		{6, 5, false},
+		{7, 7, true},
+		{0, 0, false},
+	} {
+		match.PacMan.X = float64((10+test.dx)*CellSize + CellSize/2)
+		match.PacMan.Y = float64((10+test.dy)*CellSize + CellSize/2)
+		x, y := match.Clyde.target(match.Level, match.PacMan)
+		wantX, wantY := 0, 35
+		if test.chase {
+			wantX, wantY = match.PacMan.OccupiedTile()
+		}
+		if x != wantX || y != wantY {
+			t.Errorf("offset (%d,%d): target (%d,%d), want (%d,%d)", test.dx, test.dy, x, y, wantX, wantY)
+		}
+	}
+	match.Clyde.Mode = GhostScatter
+	if x, y := match.Clyde.target(match.Level, match.PacMan); x != 0 || y != 35 ||
+		match.Clyde.speedPercent(match.Level) != match.Level.Parameters.GhostSpeedPercent {
+		t.Fatal("Clyde should scatter to the bottom-left without Elroy speed")
+	}
+	match.Clyde.Mode = GhostEaten
+	if x, y := match.Clyde.target(match.Level, match.PacMan); x != 13 || y != 14 {
+		t.Fatal("Clyde's eyes should use the shared house target")
+	}
+}
+
+// TestClydePersonalRelease checks priority, dot limits, and house alignment.
+func TestClydePersonalRelease(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	match := state.Match
+	if match.Clyde.houseStage != 4 || match.Clyde.X != float64(ScreenWidth)/2+2*CellSize {
+		t.Fatal("Clyde should start waiting on the right side of the house")
+	}
+	for _, coord := range CoinCoords[:30] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if match.InkyDots != 30 || match.Inky.houseStage != 5 || match.ClydeDots != 0 {
+		t.Fatal("the dot releasing Inky must not count for Clyde")
+	}
+	for _, coord := range CoinCoords[30:89] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if match.ClydeDots != 59 || match.Clyde.houseStage != 4 {
+		t.Fatal("Clyde should still wait after 59 personal dots on level one")
+	}
+	coord := CoinCoords[89]
+	state.ConsumeCollectible(coord[0], coord[1])
+	if match.ClydeDots != 60 || match.Clyde.houseStage != 5 {
+		t.Fatal("Clyde should start exiting on his sixtieth dot")
+	}
+	for tick := 0; tick < 200 && match.Clyde.houseStage != 0; tick++ {
+		match.Clyde.Update(match.Level, match.PacMan)
+	}
+	if match.Clyde.houseStage != 0 || match.Clyde.Direction != DirectionLeft ||
+		match.Clyde.X != float64(ScreenWidth)/2 {
+		t.Fatal("Clyde should align left with the door and exit facing left")
+	}
+	state.enterPhase(PhaseLevelComplete)
+	state.AdvanceLevel()
+	state.BeginPlaying()
+	if match.ClydeDots != 0 || match.Clyde.houseStage != 4 || match.Inky.houseStage != 5 {
+		t.Fatal("level two should reset the personal counts and release Inky first")
+	}
+	for _, coord := range CoinCoords[:49] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if match.ClydeDots != 49 || match.Clyde.houseStage != 4 {
+		t.Fatal("Clyde should wait until 50 personal dots on level two")
+	}
+	coord = CoinCoords[49]
+	state.ConsumeCollectible(coord[0], coord[1])
+	if match.ClydeDots != 50 || match.Clyde.houseStage != 5 {
+		t.Fatal("Clyde should leave at 50 personal dots on level two")
+	}
+	state.enterPhase(PhaseLevelComplete)
+	state.AdvanceLevel()
+	if match.Level.Number != 3 || match.ClydeDots != 0 || match.Clyde.houseStage != 5 ||
+		match.Clyde.ghostClock != match.Blinky.ghostClock {
+		t.Fatal("Clyde should immediately start exiting from level three")
+	}
+}
+
+// TestClydeGlobalCounterRestoresPersonal checks the agreed 32-dot behavior.
+func TestClydeGlobalCounterRestoresPersonal(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	match := state.Match
+	for _, coord := range CoinCoords[:55] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if match.InkyDots != 30 || match.ClydeDots != 25 {
+		t.Fatal("personal counters should be active in order before death")
+	}
+	state.LoseLife()
+	finishDeath(t, &state)
+	state.BeginPlaying()
+	if match.ClydeDots != 25 || !match.Blinky.ElroySuspended {
+		t.Fatal("death should retain Clyde's count and suspend Elroy")
+	}
+	for index, coord := range CoinCoords[55:87] {
+		state.ConsumeCollectible(coord[0], coord[1])
+		if index == 30 && (!match.GlobalGhostCounter || match.GlobalGhostDots != 31) {
+			t.Fatal("the global counter should remain active through 31 dots")
+		}
+	}
+	if match.GlobalGhostCounter || match.GlobalGhostDots != 0 || match.ClydeDots != 25 ||
+		match.Clyde.houseStage != 4 || !match.Blinky.ElroySuspended {
+		t.Fatal("at 32 dots Clyde should resume his retained personal count, not leave early")
+	}
+	for _, coord := range CoinCoords[87:121] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if match.ClydeDots != 59 || match.Clyde.houseStage != 4 || !match.Blinky.ElroySuspended {
+		t.Fatal("Clyde should wait and Elroy stay suspended before the personal limit")
+	}
+	coord := CoinCoords[121]
+	state.ConsumeCollectible(coord[0], coord[1])
+	if match.ClydeDots != 60 || match.Clyde.houseStage != 5 || match.Blinky.ElroySuspended {
+		t.Fatal("reaching Clyde's limit should start his exit and restore Elroy")
+	}
+	match.Level.Remaining = match.Level.Parameters.Elroy1DotsLeft
+	if match.Blinky.elroyStage(match.Level) != 1 {
+		t.Fatal("Blinky should immediately use the current Elroy threshold")
+	}
+}
+
+// TestClydeEarlyExitKeepsGlobalCounter checks the original counter exploit.
+func TestClydeEarlyExitKeepsGlobalCounter(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	state.LoseLife()
+	finishDeath(t, &state)
+	state.BeginPlaying()
+	match := state.Match
+	for range 3 * 240 {
+		state.Tick()
+	}
+	if match.Clyde.houseStage != 5 || match.Blinky.ElroySuspended {
+		t.Fatal("anti-stall should release Clyde and restore Elroy before 32 dots")
+	}
+	for _, coord := range CoinCoords[:32] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if !match.GlobalGhostCounter || match.GlobalGhostDots != 32 {
+		t.Fatal("the global counter should not reset when Clyde already started exiting")
+	}
+	match.Clyde.houseStage = 4
+	match.Clyde.X = float64(ScreenWidth) / 2
+	coord := CoinCoords[32]
+	state.ConsumeCollectible(coord[0], coord[1])
+	if !match.GlobalGhostCounter || match.GlobalGhostDots != 33 || match.Clyde.houseStage != 4 {
+		t.Fatal("returning after 32 should not restore the personal counters")
+	}
+	for range 240 {
+		state.Tick()
+	}
+	if match.Clyde.houseStage != 3 {
+		t.Fatal("the no-dot timer should still release Clyde after the missed checkpoint")
+	}
+}
+
+// TestClydeCounterRespectsInkyPriority checks personal priority after the global reset.
+func TestClydeCounterRespectsInkyPriority(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	match := state.Match
+	for _, coord := range CoinCoords[:7] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	for range 240 {
+		state.Tick()
+	}
+	for _, coord := range CoinCoords[7:67] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if match.InkyDots != 7 || match.ClydeDots != 60 || match.Clyde.houseStage != 5 {
+		t.Fatal("pre-death counters should retain Inky's partial and Clyde's reached limit")
+	}
+	state.LoseLife()
+	finishDeath(t, &state)
+	state.BeginPlaying()
+	for index, coord := range CoinCoords[67:99] {
+		if index == 30 {
+			match.Inky.houseStage = 4
+			match.Inky.X = float64(ScreenWidth) / 2
+		}
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if match.GlobalGhostCounter || match.Inky.houseStage != 4 || match.Clyde.houseStage != 4 ||
+		!match.Blinky.ElroySuspended {
+		t.Fatal("Inky's unmet personal limit must take priority over Clyde after the reset")
+	}
+	for _, coord := range CoinCoords[99:122] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if match.InkyDots != 30 || match.Inky.houseStage != 3 || match.Clyde.houseStage != 5 ||
+		match.Blinky.ElroySuspended {
+		t.Fatal("Clyde should leave once Inky's higher-priority limit is reached")
+	}
+}
+
+// TestClydeZeroLimitAfterGlobalReset checks immediate release on later levels.
+func TestClydeZeroLimitAfterGlobalReset(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	for range 2 {
+		state.enterPhase(PhaseLevelComplete)
+		state.AdvanceLevel()
+	}
+	state.BeginPlaying()
+	state.LoseLife()
+	finishDeath(t, &state)
+	state.BeginPlaying()
+	for _, coord := range CoinCoords[:32] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if state.Match.GlobalGhostCounter || state.Match.Clyde.houseStage != 5 || state.Match.Blinky.ElroySuspended {
+		t.Fatal("Clyde's zero personal limit should release him at the level-three global reset")
+	}
+}
+
+// TestClydeModesAndCapture checks shared frightened timing and Clyde's own capture.
+func TestClydeModesAndCapture(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	match := state.Match
+	match.Clyde.houseStage = 0
+	match.Clyde.X, match.Clyde.Y = float64(3*CellSize+CellSize/2), float64(4*CellSize+CellSize/2)
+	match.Clyde.Direction, match.Clyde.turn, match.Clyde.nextTurn = DirectionRight, DirectionRight, DirectionRight
+	coord := EnergizerCoords[0]
+	state.ConsumeCollectible(coord[0], coord[1])
+	if match.Clyde.Mode != GhostFrightened || match.Clyde.ghostClock != match.Blinky.ghostClock {
+		t.Fatal("Clyde should share the frightened timer")
+	}
+	match.PacMan.X, match.PacMan.Y = match.Clyde.X, match.Clyde.Y
+	match.PacMan.EatingPauseTicks = 1
+	state.UpdateActors(DirectionNone, false)
+	if state.Phase != PhaseGhostCaptured || match.GhostCapture.Kind != GhostClyde ||
+		state.GhostVisible(GhostClyde) || !state.GhostVisible(GhostBlinky) ||
+		!state.GhostVisible(GhostPinky) || !state.GhostVisible(GhostInky) {
+		t.Fatal("Clyde's capture should hide only Clyde")
+	}
+	fright, other := match.Clyde.frightTicks, match.Inky
+	for range GhostCaptureTicks {
+		state.Tick()
+	}
+	if match.Clyde.Mode != GhostEaten || match.Clyde.frightTicks != fright || match.Inky != other {
+		t.Fatal("capture should freeze other ghosts and the shared timer before returning eyes")
+	}
+	for tick := 0; tick < 5000 && match.Clyde.Mode == GhostEaten; tick++ {
+		match.Clyde.Update(match.Level, match.PacMan)
+	}
+	if match.Clyde.Mode != GhostScatter || match.Clyde.houseStage != 4 {
+		t.Fatal("Clyde should revive and wait for his unmet personal limit")
+	}
+}
+
+// TestClydeDoorCollision checks fatal and frightened collisions during house exit.
+func TestClydeDoorCollision(t *testing.T) {
+	for _, frightened := range []bool{false, true} {
+		state := GameState{}
+		state.StartNewMatch()
+		state.BeginPlaying()
+		match := state.Match
+		match.Blinky.X, match.Blinky.Y = float64(3*CellSize+CellSize/2), float64(4*CellSize+CellSize/2)
+		match.Clyde.houseStage = 3
+		match.Clyde.X, match.Clyde.Y = float64(ScreenWidth)/2, float64(15*CellSize)-1
+		match.PacMan.X, match.PacMan.Y = match.Clyde.X, match.Clyde.Y
+		match.PacMan.EatingPauseTicks = 1
+		if frightened {
+			coord := EnergizerCoords[0]
+			state.ConsumeCollectible(coord[0], coord[1])
+		}
+		state.UpdateActors(DirectionNone, false)
+		if !frightened {
+			if state.Phase != PhaseDying {
+				t.Fatal("stationary Clyde should be dangerous at the maze entrance")
+			}
+			continue
+		}
+		if state.Phase != PhaseGhostCaptured || match.GhostCapture.Kind != GhostClyde {
+			t.Fatal("frightened Clyde should be capturable at the maze entrance")
+		}
+		for range GhostCaptureTicks {
+			state.Tick()
+		}
+		if match.Clyde.Mode != GhostEaten || match.Clyde.houseStage != 2 {
+			t.Fatal("Clyde's eyes should return into the house after capture at the door")
+		}
+	}
+}
+
+// TestClydeNavigationAndFreeze checks house exit and legal paths across mode reversals.
+func TestClydeNavigationAndFreeze(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	match := state.Match
+	match.releaseClyde()
+	match.PacMan.EatingPauseTicks = 5000
+	x, y := match.Clyde.X, match.Clyde.Y
+	for range 420 {
+		state.Tick()
+		state.UpdateActors(DirectionNone, false)
+	}
+	if match.Clyde.X != x || match.Clyde.Y != y || match.Clyde.Mode != GhostChase || !match.Clyde.exitRight {
+		t.Fatal("disabling movement must not freeze Clyde's mode changes")
+	}
+	exited := false
+	for tick := 0; tick < 3000; tick++ {
+		if tick%137 == 83 {
+			match.Clyde.Frighten(match.Level)
+		}
+		match.Clyde.Tick(match.Level)
+		match.Clyde.Update(match.Level, match.PacMan)
+		if !exited && match.Clyde.houseStage == 0 {
+			exited = true
+			if match.Clyde.Direction != DirectionRight {
+				t.Fatal("a mode change in the house should make Clyde turn right on exit")
+			}
+		}
+		column, row := match.Clyde.OccupiedTile()
+		if match.Clyde.houseStage == 0 && !isWalkable(column, row) {
+			t.Fatalf("tick %d: Clyde entered wall (%d,%d)", tick, column, row)
+		}
+	}
+	if !exited {
+		t.Fatal("Clyde did not leave the house")
+	}
+}
+
+// TestGhostHouseBounce checks fixed-speed vertical pacing for every waiting ghost.
+func TestGhostHouseBounce(t *testing.T) {
+	for _, number := range []int{1, 5, 21} {
+		for _, mode := range []GhostMode{GhostScatter, GhostFrightened} {
+			blinky := NewBlinky()
+			ghosts := []GhostState{newPinky(blinky.ghostClock, true), newInky(&blinky), newClyde(blinky.ghostClock)}
+			level, player := NewLevelState(number), NewPacManState()
+			for _, ghost := range ghosts {
+				ghost.Mode = mode
+				x, y := ghost.X, ghost.Y
+				ghost.Update(level, player)
+				if ghost.X != x || math.Abs(ghost.Y-(y-actorSpeed(40))) > 0.0000001 {
+					t.Fatalf("level %d mode %v ghost %v: wrong first bounce step", number, mode, ghost.Kind)
+				}
+				reversals := 0
+				for tick := 0; tick < 100; tick++ {
+					previous := ghost.Direction
+					ghost.Update(level, player)
+					if ghost.X != x || ghost.Y < 17*CellSize || ghost.Y > 18*CellSize || ghost.houseStage != 4 {
+						t.Fatalf("level %d mode %v ghost %v: left waiting range at tick %d", number, mode, ghost.Kind, tick)
+					}
+					if ghost.Direction != previous {
+						reversals++
+					}
+				}
+				if reversals < 5 {
+					t.Fatalf("level %d mode %v ghost %v: only %d reversals", number, mode, ghost.Kind, reversals)
+				}
+			}
+		}
+	}
+}
+
+// TestGhostHouseBounceReflection checks both endpoints preserve the remaining movement.
+func TestGhostHouseBounceReflection(t *testing.T) {
+	blinky := NewBlinky()
+	ghost := newInky(&blinky)
+	level, player := NewLevelState(1), NewPacManState()
+	for _, test := range []struct {
+		// direction is the direction before the bounce.
+		direction Direction
+		// y is the initial vertical center.
+		y float64
+		// wantDirection is the direction after reflection.
+		wantDirection Direction
+		// wantY is the expected vertical center after one tick.
+		wantY float64
+	}{
+		{DirectionUp, 17*CellSize + 0.25, DirectionDown, 17*CellSize + actorSpeed(40) - 0.25},
+		{DirectionDown, 18*CellSize - 0.25, DirectionUp, 18*CellSize - actorSpeed(40) + 0.25},
+	} {
+		ghost.Y, ghost.Direction = test.y, test.direction
+		ghost.Update(level, player)
+		if ghost.Direction != test.wantDirection || math.Abs(ghost.Y-test.wantY) > 0.0000001 {
+			t.Errorf("direction %v: got y=%v direction=%v, want y=%v direction=%v",
+				test.direction, ghost.Y, ghost.Direction, test.wantY, test.wantDirection)
+		}
+	}
+}
+
+// TestGhostHouseBounceRelease checks waiting ghosts leave immediately from their current heights.
+func TestGhostHouseBounceRelease(t *testing.T) {
+	for _, kind := range []GhostKind{GhostPinky, GhostInky, GhostClyde} {
+		state := GameState{}
+		state.StartNewMatch()
+		state.BeginPlaying()
+		match := state.Match
+		var ghost *GhostState
+		switch kind {
+		case GhostPinky:
+			state.LoseLife()
+			finishDeath(t, &state)
+			state.BeginPlaying()
+			match.GlobalGhostDots = 6
+			ghost = &match.Pinky
+		case GhostInky:
+			match.InkyDots = 29
+			ghost = &match.Inky
+		case GhostClyde:
+			match.Inky.startExit()
+			match.ClydeDots = 59
+			ghost = &match.Clyde
+		}
+		ghost.Direction = DirectionDown
+		ghost.Y = 17*CellSize + 3
+		ghost.Update(match.Level, match.PacMan)
+		x, y := ghost.X, ghost.Y
+		coord := CoinCoords[0]
+		if !state.ConsumeCollectible(coord[0], coord[1]) {
+			t.Fatal("expected a collectible to trigger release")
+		}
+		if ghost.houseStage == 4 || ghost.X != x || ghost.Y != y {
+			t.Fatalf("ghost %v should be released without a position jump", kind)
+		}
+		ghost.Update(match.Level, match.PacMan)
+		if kind == GhostPinky {
+			if ghost.Y >= y || ghost.X != x {
+				t.Fatal("Pinky should move directly toward the exit")
+			}
+		} else if ghost.Y != y || math.Abs(ghost.X-float64(ScreenWidth)/2) >= math.Abs(x-float64(ScreenWidth)/2) {
+			t.Fatalf("ghost %v should align toward the door at the current height", kind)
+		}
+		for tick := 0; tick < 200 && ghost.houseStage != 0; tick++ {
+			ghost.Update(match.Level, match.PacMan)
+		}
+		if ghost.houseStage != 0 {
+			t.Fatalf("ghost %v failed to exit after bouncing", kind)
+		}
+	}
+}
+
+// TestGhostHouseBounceFreeze checks ready, disabled movement, pause, and capture freezes.
+func TestGhostHouseBounceFreeze(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	match := state.Match
+	startY := match.Inky.Y
+	for range 20 {
+		state.Tick()
+		state.UpdateActors(DirectionNone, true)
+	}
+	if match.Inky.Y != startY {
+		t.Fatal("ghosts should remain still during READY")
+	}
+	state.BeginPlaying()
+	state.LoseLife()
+	finishDeath(t, &state)
+	state.BeginPlaying()
+	match.PacMan.EatingPauseTicks = 500
+	coord := EnergizerCoords[0]
+	state.ConsumeCollectible(coord[0], coord[1])
+	ghosts := []*GhostState{&match.Pinky, &match.Inky, &match.Clyde}
+	positions := [3]float64{ghosts[0].Y, ghosts[1].Y, ghosts[2].Y}
+	fright := match.Blinky.frightTicks
+	for range 20 {
+		state.Tick()
+		state.UpdateActors(DirectionNone, false)
+	}
+	for index, ghost := range ghosts {
+		if ghost.Y != positions[index] || ghost.Mode != GhostFrightened {
+			t.Fatalf("disabled movement should freeze ghost %v without disabling fright", ghost.Kind)
+		}
+	}
+	if match.Blinky.frightTicks != fright-20 {
+		t.Fatal("frightened time should still advance when ghost movement is disabled")
+	}
+	state.UpdateActors(DirectionNone, true)
+	for index, ghost := range ghosts {
+		if ghost.Y == positions[index] {
+			t.Fatalf("ghost %v should bounce when movement is enabled", ghost.Kind)
+		}
+		positions[index] = ghost.Y
+	}
+	state.TogglePause()
+	for range 10 {
+		state.Tick()
+		state.UpdateActors(DirectionNone, true)
+	}
+	state.TogglePause()
+	for index, ghost := range ghosts {
+		if ghost.Y != positions[index] {
+			t.Fatalf("paused ghost %v should not bounce", ghost.Kind)
+		}
+	}
+	state.enterPhase(PhaseGhostCaptured)
+	fright = match.Blinky.frightTicks
+	for range 10 {
+		state.Tick()
+		state.UpdateActors(DirectionNone, true)
+	}
+	for index, ghost := range ghosts {
+		if ghost.Y != positions[index] || match.Blinky.frightTicks != fright {
+			t.Fatalf("capture should freeze waiting ghost %v and frightened time", ghost.Kind)
+		}
+	}
+}
+
+// TestGhostHouseBounceAfterRevival checks a returning ghost resumes pacing normally.
+func TestGhostHouseBounceAfterRevival(t *testing.T) {
+	blinky := NewBlinky()
+	ghost := newInky(&blinky)
+	level, player := NewLevelState(1), NewPacManState()
+	ghost.X = float64(ScreenWidth) / 2
+	ghost.Y = float64(17*CellSize + CellSize/2 - 1)
+	ghost.houseStage, ghost.Mode = 2, GhostEaten
+	ghost.Update(level, player)
+	if ghost.houseStage != 4 || ghost.Mode != GhostScatter || ghost.Direction != DirectionUp {
+		t.Fatal("revived Inky should wait facing up")
+	}
+	y := ghost.Y
+	ghost.Update(level, player)
+	if math.Abs(ghost.Y-(y-actorSpeed(40))) > 0.0000001 {
+		t.Fatal("revived Inky should bounce at the fixed waiting speed")
 	}
 }

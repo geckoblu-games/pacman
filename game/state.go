@@ -77,9 +77,13 @@ type MatchState struct {
 	Pinky GhostState
 	// Inky stores the cyan ghost and references Blinky and the shared mode schedule.
 	Inky GhostState
+	// Clyde stores the orange ghost and references the shared mode schedule.
+	Clyde GhostState
 	// InkyDots is Inky's personal dot count, retained through life loss.
 	InkyDots int
-	// GlobalGhostCounter is active after a death until Clyde is implemented.
+	// ClydeDots is Clyde's personal dot count, retained through life loss.
+	ClydeDots int
+	// GlobalGhostCounter is active after a death until Clyde is waiting at 32 dots.
 	GlobalGhostCounter bool
 	// GlobalGhostDots counts collectibles eaten since the last death.
 	GlobalGhostDots int
@@ -107,6 +111,7 @@ func (state *GameState) StartNewMatch() {
 	state.Match = &MatchState{Lives: InitialLives, Level: NewLevelState(1), PacMan: NewPacManState(), Blinky: NewBlinky()}
 	state.Match.Pinky = newPinky(state.Match.Blinky.ghostClock, false)
 	state.Match.Inky = newInky(&state.Match.Blinky)
+	state.Match.Clyde = newClyde(state.Match.Blinky.ghostClock)
 	state.Match.releasePersonalGhosts()
 	state.Paused = false
 	state.enterPhase(PhaseReady)
@@ -147,6 +152,8 @@ func (state *GameState) Tick() {
 				ghost = &state.Match.Pinky
 			case GhostInky:
 				ghost = &state.Match.Inky
+			case GhostClyde:
+				ghost = &state.Match.Clyde
 			default:
 				panic("invalid captured ghost kind")
 			}
@@ -183,6 +190,7 @@ func (state *GameState) Tick() {
 		state.Match.Blinky.applyClock(changed, ended)
 		state.Match.Pinky.applyClock(changed, ended)
 		state.Match.Inky.applyClock(changed, ended)
+		state.Match.Clyde.applyClock(changed, ended)
 		if frightened && state.Match.Blinky.frightTicks == 0 {
 			state.Match.GhostStreak = 0
 		}
@@ -278,9 +286,17 @@ func (state *GameState) ConsumeCollectible(column, row int) bool {
 			state.Match.releasePinky()
 		} else if state.Match.GlobalGhostDots == 17 && state.Match.Inky.houseStage == 4 {
 			state.Match.Inky.startExit()
+		} else if state.Match.GlobalGhostDots == 32 && state.Match.Clyde.houseStage == 4 {
+			state.Match.GlobalGhostCounter = false
+			state.Match.GlobalGhostDots = 0
+			state.Match.releasePersonalGhosts()
 		}
-	} else if state.Match.Pinky.houseStage != 4 && state.Match.Inky.houseStage == 4 {
-		state.Match.InkyDots++
+	} else if state.Match.Pinky.houseStage != 4 {
+		if state.Match.Inky.houseStage == 4 {
+			state.Match.InkyDots++
+		} else if state.Match.Clyde.houseStage == 4 {
+			state.Match.ClydeDots++
+		}
 		state.Match.releasePersonalGhosts()
 	}
 	if points == 10 {
@@ -291,6 +307,7 @@ func (state *GameState) ConsumeCollectible(column, row int) bool {
 		state.Match.Blinky.Frighten(state.Match.Level)
 		state.Match.Pinky.Frighten(state.Match.Level)
 		state.Match.Inky.Frighten(state.Match.Level)
+		state.Match.Clyde.Frighten(state.Match.Level)
 	}
 	state.AddScore(points)
 	eaten := len(CoinCoords) + len(EnergizerCoords) - state.Match.Level.Remaining
@@ -345,7 +362,9 @@ func (state *GameState) AdvanceLevel() bool {
 	state.Match.Blinky = NewBlinky()
 	state.Match.Pinky = newPinky(state.Match.Blinky.ghostClock, false)
 	state.Match.Inky = newInky(&state.Match.Blinky)
+	state.Match.Clyde = newClyde(state.Match.Blinky.ghostClock)
 	state.Match.InkyDots = 0
+	state.Match.ClydeDots = 0
 	state.Match.GlobalGhostCounter = false
 	state.Match.GlobalGhostDots = 0
 	state.Match.NoDotTicks = 0
@@ -374,6 +393,7 @@ func (state *GameState) finishDeath() {
 	state.Match.Blinky.ElroySuspended = true
 	state.Match.Pinky = newPinky(state.Match.Blinky.ghostClock, true)
 	state.Match.Inky = newInky(&state.Match.Blinky)
+	state.Match.Clyde = newClyde(state.Match.Blinky.ghostClock)
 	state.Match.GlobalGhostCounter = true
 	state.Match.GlobalGhostDots = 0
 	state.Match.NoDotTicks = 0

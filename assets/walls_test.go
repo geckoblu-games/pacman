@@ -126,6 +126,7 @@ func TestGhostColorFrames(t *testing.T) {
 	}{
 		{"Pinky", 2, images.PinkyFrames},
 		{"Inky", 3, images.InkyFrames},
+		{"Clyde", 4, images.ClydeFrames},
 	} {
 		for column, frame := range ghost.frames {
 			if frame == nil || frame.Bounds().Size() != image.Pt(classicTilesetTileSize, classicTilesetTileSize) {
