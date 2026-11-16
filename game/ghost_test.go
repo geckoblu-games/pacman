@@ -490,6 +490,37 @@ func TestEyesReturnFromMaze(t *testing.T) {
 	}
 }
 
+// TestEyesReviveAtOwnHousePositions checks Inky and Clyde return to their starting slots.
+func TestEyesReviveAtOwnHousePositions(t *testing.T) {
+	level := NewLevelState(1)
+	player := NewPacManState()
+	blinky := NewBlinky()
+	homeY := float64(17*CellSize + CellSize/2)
+	tests := []struct {
+		name  string
+		ghost GhostState
+		homeX float64
+	}{
+		{"Inky", newInky(&blinky), float64(ScreenWidth)/2 - 2*CellSize},
+		{"Clyde", newClyde(blinky.ghostClock), float64(ScreenWidth)/2 + 2*CellSize},
+	}
+	for _, test := range tests {
+		ghost := test.ghost
+		ghost.Mode = GhostEaten
+		ghost.houseStage = 2
+		ghost.X, ghost.Y = float64(ScreenWidth)/2, homeY
+		ghost.Update(level, player)
+		for tick := 0; tick < 200 && ghost.houseStage != 4; tick++ {
+			ghost.Update(level, player)
+		}
+		if ghost.houseStage != 4 || ghost.Mode == GhostEaten ||
+			ghost.X != test.homeX || ghost.Y != homeY {
+			t.Errorf("%s revived at (%v,%v), stage %d, mode %d; want (%v,%v) waiting in the house",
+				test.name, ghost.X, ghost.Y, ghost.houseStage, ghost.Mode, test.homeX, homeY)
+		}
+	}
+}
+
 // TestPinkyTargets checks all chase directions, the up bug, and the scatter corner.
 func TestPinkyTargets(t *testing.T) {
 	level := NewLevelState(1)
@@ -880,9 +911,9 @@ func TestInkyPersonalRelease(t *testing.T) {
 		t.Fatal("Inky should align with the door, exit, and turn left")
 	}
 	match.Inky.houseStage = 4
-	match.Inky.X = float64(ScreenWidth) / 2
+	match.Inky.X = float64(ScreenWidth)/2 - 2*CellSize
 	state.UpdateActors(DirectionNone, false)
-	if match.Inky.houseStage != 3 {
+	if match.Inky.houseStage != 5 {
 		t.Fatal("a revived Inky should retain his reached personal limit")
 	}
 	for number := 2; number <= 3; number++ {
@@ -924,7 +955,7 @@ func TestInkyPostDeathRelease(t *testing.T) {
 		t.Fatal("Clyde leaving early should keep the global counter active and personal count unchanged")
 	}
 	match.Inky.houseStage = 4
-	match.Inky.X = float64(ScreenWidth) / 2
+	match.Inky.X = float64(ScreenWidth)/2 - 2*CellSize
 	state.UpdateActors(DirectionNone, false)
 	if match.Inky.houseStage != 4 {
 		t.Fatal("Inky should not be released again after missing his checkpoint")
@@ -932,7 +963,7 @@ func TestInkyPostDeathRelease(t *testing.T) {
 	for range 240 {
 		state.Tick()
 	}
-	if match.Inky.houseStage != 3 {
+	if match.Inky.houseStage != 5 {
 		t.Fatal("anti-stall should eventually release revived Inky")
 	}
 }
@@ -1004,7 +1035,7 @@ func TestInkyCounterAfterForcedExit(t *testing.T) {
 	}
 	coord := CoinCoords[29]
 	state.ConsumeCollectible(coord[0], coord[1])
-	if match.InkyDots != 30 || match.Inky.houseStage != 3 {
+	if match.InkyDots != 30 || match.Inky.houseStage != 5 {
 		t.Fatal("the resumed counter should release Inky at 30")
 	}
 }
@@ -1321,7 +1352,7 @@ func TestClydeEarlyExitKeepsGlobalCounter(t *testing.T) {
 		t.Fatal("the global counter should not reset when Clyde already started exiting")
 	}
 	match.Clyde.houseStage = 4
-	match.Clyde.X = float64(ScreenWidth) / 2
+	match.Clyde.X = float64(ScreenWidth)/2 + 2*CellSize
 	coord := CoinCoords[32]
 	state.ConsumeCollectible(coord[0], coord[1])
 	if !match.GlobalGhostCounter || match.GlobalGhostDots != 33 || match.Clyde.houseStage != 4 {
@@ -1330,7 +1361,7 @@ func TestClydeEarlyExitKeepsGlobalCounter(t *testing.T) {
 	for range 240 {
 		state.Tick()
 	}
-	if match.Clyde.houseStage != 3 {
+	if match.Clyde.houseStage != 5 {
 		t.Fatal("the no-dot timer should still release Clyde after the missed checkpoint")
 	}
 }
@@ -1359,7 +1390,7 @@ func TestClydeCounterRespectsInkyPriority(t *testing.T) {
 	for index, coord := range CoinCoords[67:99] {
 		if index == 30 {
 			match.Inky.houseStage = 4
-			match.Inky.X = float64(ScreenWidth) / 2
+			match.Inky.X = float64(ScreenWidth)/2 - 2*CellSize
 		}
 		state.ConsumeCollectible(coord[0], coord[1])
 	}
@@ -1370,7 +1401,7 @@ func TestClydeCounterRespectsInkyPriority(t *testing.T) {
 	for _, coord := range CoinCoords[99:122] {
 		state.ConsumeCollectible(coord[0], coord[1])
 	}
-	if match.InkyDots != 30 || match.Inky.houseStage != 3 || match.Clyde.houseStage != 5 ||
+	if match.InkyDots != 30 || match.Inky.houseStage != 5 || match.Clyde.houseStage != 5 ||
 		match.Blinky.ElroySuspended {
 		t.Fatal("Clyde should leave once Inky's higher-priority limit is reached")
 	}
@@ -1693,8 +1724,11 @@ func TestGhostHouseBounceAfterRevival(t *testing.T) {
 	ghost.Y = float64(17*CellSize + CellSize/2 - 1)
 	ghost.houseStage, ghost.Mode = 2, GhostEaten
 	ghost.Update(level, player)
+	for tick := 0; tick < 200 && ghost.houseStage != 4; tick++ {
+		ghost.Update(level, player)
+	}
 	if ghost.houseStage != 4 || ghost.Mode != GhostScatter || ghost.Direction != DirectionUp {
-		t.Fatal("revived Inky should wait facing up")
+		t.Fatal("revived Inky should wait at his slot facing up")
 	}
 	y := ghost.Y
 	ghost.Update(level, player)

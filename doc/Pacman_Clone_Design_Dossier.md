@@ -244,6 +244,7 @@ Three sources of points, matching the dossier:
 ### 5.6 Lives
 - **[FACT]** Pac-Man start a game with 3 lives, when lives end the game is over.
 - **[FACT]** Losing a life resets: Pac-Man and ghosts to start positions, the scatter/chase timer to its beginning, ghosts' per-ghost dot counters to disabled (replaced temporarily by the global dot counter, §6.2), and the frightened PRNG seed.
+- **[DECISION]** A match starts with three lives and awards no extra lives for reaching a score threshold. The source dossier does not specify a threshold; this project keeps the current behavior.
 
 ---
 
@@ -254,6 +255,7 @@ This is one of the most detail-dense subsystems in the dossier and deserves expl
 ### 6.1 Starting Positions
 - **[FACT]** Blinky starts just outside, above the ghost house door. Inky, Pinky, Clyde start inside (left, middle, right respectively). See `StartPositions.png`.
 - **[FACT]** Once a ghost leaves the house, it cannot re-enter except as "eyes" after being eaten by Pac-Man, in which case it travels to the fixed "return home" target tile (§4.5), re-enters, and is revived (then exits again, resetting to normal mode).
+- **[DECISION]** Inky and Clyde revive in their original left and right house positions, respectively, after returning as eyes; the existing personal/global release rules still determine when they exit again.
 - **[FACT]** Because Blinky starts outside, he is functionally never subject to the house-release logic below except after being eaten.
 - **[FACT]** Ghosts waiting in the house bounce vertically; the source dossier specifically describes Clyde bouncing until he moves toward the exit.
 - **[DECISION]** Use a fixed 40% of base speed for this bounce at every level and in every mode, as chosen by the project owner. The implementation uses center positions from rows 17 to 18 in the 16-pixel grid and begins exiting immediately from the current height. Both the speed and bounds are approximations, not verified pixel-exact arcade behavior.
@@ -397,8 +399,7 @@ Because so much of the ghost behavior described in the dossier is precisely spec
 | 4   | Hard-mode jumper levels              | Documented as a hardware curiosity, not a core rule                      | Treat as optional/stretch feature, data-driven (§5.5)                                                                                                 |
 | 5   | Original PRNG bit-level reproduction | Described conceptually, not fully specified                              | Use a seeded PRNG with equivalent reseed events; exact bit-level parity not required unless frame-perfect "pattern" replay is an explicit goal (§3.4) |
 | 6   | Clyde's 8-tile check granularity     | Not stated whether continuous or per-intersection                        | Evaluate every tile-entry, for responsiveness consistent with the rest of the lookahead model (§4.4)                                                  |
-| 7   | Bonus life at 10,000 points          | Standard arcade default, not covered by this document                    | Undecided; not implemented. Decide whether to award one extra life at 10,000 points and whether a score cap applies                                   |
-| 8   | Attract/title screen                 | Named in the game-flow outline (§9.3) but not specified                  | Undecided; not implemented. Launch enters `READY!` directly and `GAME OVER` waits for `Enter`                                                         |
+| 7   | Attract/title screen                 | Named in the game-flow outline (§9.3) but not specified                  | Undecided; not implemented. Launch enters `READY!` directly and `GAME OVER` waits for `Enter`                                                         |
 
 ---
 

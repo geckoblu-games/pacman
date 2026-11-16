@@ -74,7 +74,7 @@ type GhostState struct {
 	turn Direction
 	// nextTurn is the direction chosen for the center of the next tile.
 	nextTurn Direction
-	// houseStage tracks eyes entering, waiting inside, and leaving the house.
+	// houseStage tracks eyes entering, returning to their slots, waiting, and leaving.
 	houseStage int
 	// exitRight records a schedule change while the ghost is inside the house.
 	exitRight bool
@@ -423,10 +423,19 @@ func (ghost *GhostState) moveInHouse(distance float64) {
 		ghost.Direction = DirectionDown
 		ghost.Y = math.Min(insideY, ghost.Y+distance)
 		if ghost.Y == insideY {
-			ghost.houseStage = 4
-			ghost.Mode = ghost.scheduledMode()
-			ghost.exitRight = false
-			ghost.Direction = DirectionUp
+			switch ghost.Kind {
+			case GhostInky, GhostClyde:
+				ghost.houseStage = 6
+				ghost.Direction = DirectionLeft
+				if ghost.Kind == GhostClyde {
+					ghost.Direction = DirectionRight
+				}
+			default:
+				ghost.houseStage = 4
+				ghost.Mode = ghost.scheduledMode()
+				ghost.exitRight = false
+				ghost.Direction = DirectionUp
+			}
 			if ghost.Kind == GhostBlinky {
 				ghost.houseStage = 3
 			}
@@ -483,6 +492,24 @@ func (ghost *GhostState) moveInHouse(distance float64) {
 		}
 		if ghost.X == centerX {
 			ghost.houseStage = 3
+		}
+	case 6:
+		homeX := centerX - 2*CellSize
+		if ghost.Kind == GhostClyde {
+			homeX = centerX + 2*CellSize
+		}
+		if ghost.X < homeX {
+			ghost.Direction = DirectionRight
+			ghost.X = math.Min(homeX, ghost.X+distance)
+		} else {
+			ghost.Direction = DirectionLeft
+			ghost.X = math.Max(homeX, ghost.X-distance)
+		}
+		if ghost.X == homeX {
+			ghost.houseStage = 4
+			ghost.Mode = ghost.scheduledMode()
+			ghost.exitRight = false
+			ghost.Direction = DirectionUp
 		}
 	}
 }
