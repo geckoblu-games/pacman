@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"strconv"
@@ -19,6 +20,8 @@ const (
 	highScoreColumn = 9
 	// oneUpColumn is the zero-based starting column of the player label.
 	oneUpColumn = 3
+	// twoUpColumn is the zero-based starting column of the arcade's second-player label.
+	twoUpColumn = 22
 	// scoreRightColumn is the zero-based column whose right edge aligns the score.
 	scoreRightColumn = 6
 	// highScoreRightColumn aligns the record to the right edge of this column.
@@ -38,14 +41,17 @@ var fruitScoreColor = color.RGBA{R: 255, G: 184, B: 255, A: 255}
 // ghostScoreColor is the light blue used for captured-ghost scores.
 var ghostScoreColor = color.RGBA{G: 255, B: 255, A: 255}
 
-// ScenePlay handles match input and renders the maze, actors, collectibles, and HUD.
+// ScenePlay handles input and renders the attract screen or the maze, actors,
+// collectibles, and HUD of a match.
 type ScenePlay struct {
 	// State references the session and match owned by Game.
 	State *GameState
 	// images contains loaded sprites and lazily generated debug overlays.
 	images assets.GameImages
-	// highScoreFace is the reusable font face for HUD labels and scores.
+	// highScoreFace is the reusable font face for HUD labels, scores and messages.
 	highScoreFace *text.GoTextFace
+	// smallFace is the half-height font face for the attract legend's PTS suffix.
+	smallFace *text.GoTextFace
 	// pacMan draws the player's normal and death sprites.
 	pacMan *pacManSprite
 }
@@ -60,17 +66,25 @@ func newScenePlay(state *GameState) (*ScenePlay, error) {
 	if err != nil {
 		return nil, err
 	}
+	smallFace, err := assets.LoadTextFace("PressStart2P-Regular.ttf", attractSmallFontSize)
+	if err != nil {
+		return nil, err
+	}
 	return &ScenePlay{
 		State:         state,
 		images:        images,
 		highScoreFace: highScoreFace,
+		smallFace:     smallFace,
 		pacMan:        newPacManSprite(images.PacManFrames, images.PacManDeathFrames),
 	}, nil
 }
 
-// Update handles match input, advances timers, and updates actors during active play.
+// Update handles input, advances timers, and updates actors during active play.
+// Enter replaces the arcade's coin insert: from the attract screen or GAME OVER it
+// starts a new match immediately.
 func (scene *ScenePlay) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && (scene.State.Match == nil || scene.State.Phase == PhaseGameOver) {
+		// TODO(audio): play the coin-insert sound effect here once sound is implemented.
 		scene.State.StartNewMatch()
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyP) {
@@ -103,10 +117,15 @@ func (scene *ScenePlay) pacManDirection() Direction {
 	}
 }
 
-// Draw composes debug backgrounds, walls, collectibles, the bonus or its score popup,
-// Pac-Man, ghosts, the grid, the HUD, and the READY! intro or PAUSED message. The maze uses
-// the white walls during white flash segments.
+// Draw renders the attract screen in PhaseAttract. Otherwise it composes debug
+// backgrounds, walls, collectibles, the bonus or its score popup, Pac-Man, ghosts, the
+// grid, the HUD, and the READY! intro or PAUSED message. The maze uses the white walls
+// during white flash segments.
 func (scene *ScenePlay) Draw(screen *ebiten.Image) {
+	if scene.State.Phase == PhaseAttract {
+		scene.drawAttract(screen)
+		return
+	}
 	if DebugAllowedPathEnabled {
 		scene.drawDebugAllowedPath(screen)
 	}
@@ -144,6 +163,7 @@ func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	}
 	scene.drawTopLabel(screen, "1UP", oneUpColumn)
 	scene.drawTopLabel(screen, "HIGH SCORE", highScoreColumn)
+	scene.drawTopLabel(screen, "2UP", twoUpColumn)
 	scene.drawScore(screen, scene.State.HighScore, highScoreRightColumn)
 	if scene.State.Match != nil {
 		scene.drawScore(screen, scene.State.Match.Score, scoreRightColumn)
@@ -170,10 +190,24 @@ func (scene *ScenePlay) drawGhostCaptureScore(screen *ebiten.Image) {
 	}
 }
 
-// drawGhost draws the current ghost frame, including a wrapped tunnel copy.
+// drawGhost draws the current ghost frame, including a wrapped tunnel copy. Frightened
+// ghosts flash white during the level's final flash periods.
 func (scene *ScenePlay) drawGhost(screen *ebiten.Image, ghost GhostState, level LevelState) {
+	flashing := ghost.Mode == GhostFrightened &&
+		ghost.frightTicks <= level.Parameters.FrightFlashes*30 && (ghost.frightTicks/15)%2 == 0
+	frame := scene.ghostFrame(ghost.Kind, ghost.Direction, ghost.Mode, ghost.animationTicks, flashing)
+	size := frame.Bounds().Size()
+	positions, count := pacManDrawPositions(ghost.X, size.X)
+	for _, x := range positions[:count] {
+		drawSpriteCentered(screen, frame, x, ghost.Y)
+	}
+}
+
+// ghostFrame selects the sprite for a ghost's kind, facing, mode and animation tick;
+// flashing selects the white frightened frames instead of the blue ones.
+func (scene *ScenePlay) ghostFrame(kind GhostKind, facing Direction, mode GhostMode, animationTicks int, flashing bool) *ebiten.Image {
 	direction := 3
-	switch ghost.Direction {
+	switch facing {
 	case DirectionUp:
 		direction = 0
 	case DirectionDown:
@@ -181,31 +215,34 @@ func (scene *ScenePlay) drawGhost(screen *ebiten.Image, ghost GhostState, level 
 	case DirectionLeft:
 		direction = 2
 	}
-	frame := scene.images.BlinkyFrames[direction*2+(ghost.animationTicks/6)%2]
-	switch ghost.Kind {
+	index := direction*2 + (animationTicks/6)%2
+	frame := scene.images.BlinkyFrames[index]
+	switch kind {
 	case GhostPinky:
-		frame = scene.images.PinkyFrames[direction*2+(ghost.animationTicks/6)%2]
+		frame = scene.images.PinkyFrames[index]
 	case GhostInky:
-		frame = scene.images.InkyFrames[direction*2+(ghost.animationTicks/6)%2]
+		frame = scene.images.InkyFrames[index]
 	case GhostClyde:
-		frame = scene.images.ClydeFrames[direction*2+(ghost.animationTicks/6)%2]
+		frame = scene.images.ClydeFrames[index]
 	}
-	if ghost.Mode == GhostEaten {
+	if mode == GhostEaten {
 		frame = scene.images.GhostEyes[direction]
-	} else if ghost.Mode == GhostFrightened {
-		index := (ghost.animationTicks / 6) % 2
-		if ghost.frightTicks <= level.Parameters.FrightFlashes*30 && (ghost.frightTicks/15)%2 == 0 {
+	} else if mode == GhostFrightened {
+		index := (animationTicks / 6) % 2
+		if flashing {
 			index += 2
 		}
 		frame = scene.images.FrightenedFrames[index]
 	}
-	size := frame.Bounds().Size()
-	positions, count := pacManDrawPositions(ghost.X, size.X)
-	for _, x := range positions[:count] {
-		op := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
-		op.GeoM.Translate(x-float64(size.X)/2, ghost.Y-float64(size.Y)/2)
-		screen.DrawImage(frame, op)
-	}
+	return frame
+}
+
+// drawSpriteCentered draws a sprite with its center at the given logical-pixel position.
+func drawSpriteCentered(screen, sprite *ebiten.Image, x, y float64) {
+	size := sprite.Bounds().Size()
+	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
+	op.GeoM.Translate(x-float64(size.X)/2, y-float64(size.Y)/2)
+	screen.DrawImage(sprite, op)
 }
 
 // drawReady centers PAUSED, READY!, or the red GAME OVER message on readyRow.
@@ -296,13 +333,19 @@ func (scene *ScenePlay) drawBonusSymbols(screen *ebiten.Image) {
 	}
 }
 
-// drawScore renders a decimal score aligned to the right edge of a grid column.
+// drawScore renders a score aligned to the right edge of a grid column in the arcade's
+// two-digit minimum format.
 func (scene *ScenePlay) drawScore(screen *ebiten.Image, score, rightColumn int) {
 	op := &text.DrawOptions{}
 	op.PrimaryAlign = text.AlignEnd
 	op.GeoM.Translate(float64((rightColumn+1)*CellSize), float64(highScoreTop+CellSize))
 	op.ColorScale.ScaleWithColor(color.White)
-	text.Draw(screen, strconv.Itoa(score), scene.highScoreFace, op)
+	text.Draw(screen, formatScore(score), scene.highScoreFace, op)
+}
+
+// formatScore renders a score with at least two digits, so zero appears as 00 like the arcade.
+func formatScore(score int) string {
+	return fmt.Sprintf("%02d", score)
 }
 
 // drawCoins draws only the coins still present in the current level.
@@ -341,16 +384,16 @@ func (scene *ScenePlay) drawEnergizers(screen *ebiten.Image) {
 	}
 }
 
-// drawTopLabel renders a label at the common top HUD offset.
+// drawTopLabel renders a white label at the common top HUD offset.
 func (scene *ScenePlay) drawTopLabel(screen *ebiten.Image, label string, column int) {
-	scene.drawHUDText(screen, label, column, highScoreTop)
+	scene.drawHUDText(screen, label, column, highScoreTop, color.White)
 }
 
-// drawHUDText renders white HUD text at a grid column and logical pixel offset.
-func (scene *ScenePlay) drawHUDText(screen *ebiten.Image, label string, column, top int) {
+// drawHUDText renders HUD text in the given color at a grid column and logical pixel offset.
+func (scene *ScenePlay) drawHUDText(screen *ebiten.Image, label string, column, top int, textColor color.Color) {
 	op := &text.DrawOptions{}
 	op.GeoM.Translate(float64(column*CellSize), float64(top))
-	op.ColorScale.ScaleWithColor(color.White)
+	op.ColorScale.ScaleWithColor(textColor)
 	text.Draw(screen, label, scene.highScoreFace, op)
 }
 

@@ -17,6 +17,7 @@ func TestHighScoreCheckpoints(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	game.State.StartNewMatch()
 	path := filepath.Join(t.TempDir(), "highscore")
 	store := highscore.New(path)
 	if err := store.Save(100); err != nil {
@@ -80,6 +81,7 @@ func TestHighScoreCheckpointFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	game.State.StartNewMatch()
 	calls := 0
 	game.SaveHighScore = func(score int) error {
 		calls++
@@ -116,6 +118,7 @@ func TestCaptureResumeRenderingPosition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	game.State.StartNewMatch()
 	game.State.BeginPlaying()
 	match := game.State.Match
 	match.Blinky.Frighten(match.Level)
@@ -203,14 +206,27 @@ func TestBonusSpritesLoaded(t *testing.T) {
 	}
 }
 
-// TestNewStartsWithReadyIntro checks that a new game shows the intro and starts play without Enter.
-func TestNewStartsWithReadyIntro(t *testing.T) {
+// TestNewStartsInAttract checks that a new game shows the attract screen, that the
+// presentation loops without a match, and that starting a match enters the READY! intro.
+func TestNewStartsInAttract(t *testing.T) {
 	game, err := New()
 	if err != nil {
 		t.Fatal(err)
 	}
+	if game.State.Phase != PhaseAttract || game.State.Match != nil {
+		t.Fatalf("new game should start on the attract screen, got %v", game.State.Phase)
+	}
+	for tick := 0; tick < AttractCycleTicks+10; tick++ {
+		if err := game.Update(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if game.State.Phase != PhaseAttract || game.State.Match != nil || game.State.Attract.Ticks != 10 {
+		t.Fatalf("attract screen should loop without starting a match: phase %v tick %d", game.State.Phase, game.State.Attract.Ticks)
+	}
+	game.State.StartNewMatch()
 	if game.State.Phase != PhaseReady || game.State.PhaseTicks != 0 {
-		t.Fatalf("new game should start in the ready intro, got %v at tick %d", game.State.Phase, game.State.PhaseTicks)
+		t.Fatalf("starting a match should enter the ready intro, got %v at tick %d", game.State.Phase, game.State.PhaseTicks)
 	}
 	for tick := 0; tick < ReadyTicks; tick++ {
 		if err := game.Update(); err != nil {
@@ -222,12 +238,33 @@ func TestNewStartsWithReadyIntro(t *testing.T) {
 	}
 }
 
+// TestAttractDrawReadOnly checks that drawing every attract tick does not mutate state.
+func TestAttractDrawReadOnly(t *testing.T) {
+	game, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	screen := ebiten.NewImage(ScreenWidth, ScreenHeight)
+	defer screen.Deallocate()
+	for tick := 0; tick < AttractCycleTicks; tick++ {
+		before := game.State
+		game.Draw(screen)
+		if game.State != before {
+			t.Fatalf("tick %d: drawing the attract screen changed the state", tick)
+		}
+		if err := game.Update(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 // TestPacManSpriteLoaded checks that Pac-Man uses the atlas sprite and starts centered in the maze.
 func TestPacManSpriteLoaded(t *testing.T) {
 	game, err := New()
 	if err != nil {
 		t.Fatal(err)
 	}
+	game.State.StartNewMatch()
 	for index, frame := range game.scenePlay.pacMan.frames {
 		if frame == nil || frame.Bounds().Size() != image.Pt(26, 26) {
 			t.Fatalf("Pac-Man frame %d should be a loaded 26-pixel atlas image", index)
@@ -272,6 +309,7 @@ func TestScenePlayDelegation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	game.State.StartNewMatch()
 	if game.scenePlay.State != &game.State {
 		t.Fatal("scene should share the game's state")
 	}

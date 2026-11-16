@@ -10,17 +10,18 @@ import (
 // Game owns the session state and delegates updates and rendering to ScenePlay.
 // Use New to initialize the scene before passing a Game to Ebitengine.
 type Game struct {
-	// State contains the session record and current match shared with the scene.
+	// State contains the session record, the attract presentation and the current match
+	// shared with the scene.
 	State GameState
 	// SaveHighScore optionally persists the record at level completion and game over.
 	SaveHighScore func(int) error
-	// scenePlay handles input, frame updates, and rendering.
+	// scenePlay handles input, frame updates, and rendering of the attract and play screens.
 	scenePlay *ScenePlay
 	// lastPhase tracks phase changes observed at update boundaries.
 	lastPhase Phase
 }
 
-// New loads the play scene's assets and starts a fresh match in the ready intro.
+// New loads the scene's assets and starts the attract presentation.
 func New() (*Game, error) {
 	game := &Game{}
 	scene, err := newScenePlay(&game.State)
@@ -28,7 +29,7 @@ func New() (*Game, error) {
 		return nil, err
 	}
 	game.scenePlay = scene
-	game.State.StartNewMatch()
+	game.State.EnterAttract()
 	return game, nil
 }
 
@@ -56,7 +57,7 @@ func (game *Game) saveCheckpoint() {
 	}
 }
 
-// Draw delegates rendering of the current frame to the play scene.
+// Draw delegates rendering of the current frame to the scene.
 func (game *Game) Draw(screen *ebiten.Image) {
 	game.scenePlay.Draw(screen)
 }

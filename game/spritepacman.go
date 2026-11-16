@@ -19,8 +19,21 @@ func newPacManSprite(frames [9]*ebiten.Image, deathFrames [10]*ebiten.Image) *pa
 	return &pacManSprite{frames: frames, deathFrames: deathFrames}
 }
 
-// Draw renders the normal or death frame at Pac-Man's simulation position.
+// Draw renders the normal or death frame at Pac-Man's simulation position, repeating
+// it across the opposite screen edge when clipped by the tunnel.
 func (sprite *pacManSprite) Draw(screen *ebiten.Image, player PacManState, deathFrame int) {
+	sprite.draw(screen, player, deathFrame, true)
+}
+
+// DrawUnwrapped renders the normal frame only at Pac-Man's position, letting it leave
+// the screen edges without a wrapped copy; the attract chase uses it.
+func (sprite *pacManSprite) DrawUnwrapped(screen *ebiten.Image, player PacManState) {
+	sprite.draw(screen, player, -1, false)
+}
+
+// draw selects the frame and rotation, then draws at the primary position and, when
+// wrap is set, at the wrapped positions returned by pacManDrawPositions.
+func (sprite *pacManSprite) draw(screen *ebiten.Image, player PacManState, deathFrame int, wrap bool) {
 	frame := player.animationFrame
 	if frame < 0 || frame >= len(sprite.frames) {
 		frame = pacManClosedMouthFrame
@@ -52,6 +65,10 @@ func (sprite *pacManSprite) Draw(screen *ebiten.Image, player PacManState, death
 		op.GeoM.Rotate(rotation)
 		op.GeoM.Translate(x, player.Y)
 		screen.DrawImage(image, op)
+	}
+	if !wrap {
+		drawAt(player.X)
+		return
 	}
 	positions, count := pacManDrawPositions(player.X, size.X)
 	for _, x := range positions[:count] {

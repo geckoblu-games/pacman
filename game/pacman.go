@@ -96,13 +96,18 @@ func (player *PacManState) Update(requested Direction, level LevelState) {
 	speed := actorSpeed(level.Parameters.PacManSpeedPercent)
 	previousX, previousY := player.X, player.Y
 	player.advance(speed)
-	if player.X == previousX && player.Y == previousY {
+	player.animate(player.X != previousX || player.Y != previousY)
+}
+
+// animate advances the mouth cycle by one tick after movement, or resets it to the
+// half-open frame of the facing direction when Pac-Man stood still.
+func (player *PacManState) animate(moved bool) {
+	if !moved {
 		player.animationTicks = 0
 		player.animationPhase = 0
 		player.animationFrame = pacManHalfMouthFrame(player.lastDirection)
 		return
 	}
-
 	player.animationTicks++
 	if player.animationTicks == pacManAnimationTicksPerFrame {
 		player.animationTicks = 0

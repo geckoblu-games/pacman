@@ -68,6 +68,14 @@ Three sources of points, matching the dossier:
 - **[DECISION]** Pausing is possible during the READY! intro, active play, the ghost-capture pause, the death sequence, and the level-clear flash. It is rejected when no match exists or after game over, and a new match always starts unpaused.
 - **[DECISION]** While paused, a centered yellow `PAUSED` message replaces the `READY!` message position on the corridor below the ghost house; the rest of the screen is drawn unchanged.
 
+### 1.9 Attract Screen and Match Start
+- **[FACT]** The arcade's attract mode is specified in `Pac-Man Attract Mode (Introductory Screen).md`: a silent cast-reveal timeline, a corridor chase with a decoy energizer and four captures worth 200/400/800/1600, a demo play phase, and a coin-insert interrupt leading to a `PUSH START BUTTON` screen with a player-count choice.
+- **[DECISION]** The application launches on the attract screen and reproduces its layout and timeline (phases A–C, 1,170 ticks) using the specification's 8-pixel-tile coordinates scaled to the 16-pixel grid. Sprite positions are read as top-left corners of 16-pixel sprites and converted to centers; the chase and the decoy share the center of row 20. Capture ticks follow from the specified speeds and the 45-tick pauses rather than the specification's approximate frame numbers.
+- **[DECISION]** Demo play (phase D) is not implemented: at tick 1,170 the presentation restarts from its first tick and loops until a match starts.
+- **[DECISION]** `Enter` replaces the coin insert. There is no credit counter, no `PUSH START BUTTON` screen and no two-player option: pressing `Enter` on the attract screen or after `GAME OVER` immediately starts a single-player match with the `READY!` intro. When audio is implemented, the coin-insert sound effect must play at this key press.
+- **[DECISION]** For arcade fidelity the attract screen shows the `2UP` label and a static `CREDIT  0` line, and the `1UP` field shows the previous match's final score (`00` at launch). Scores use the arcade's two-digit minimum (`00`) on every screen. The `2UP` label is also shown during play, as in the arcade; no second-player score is ever displayed.
+- **[DECISION]** After the last life, `GAME OVER` remains visible for 180 ticks (three seconds, an assumption rather than a measured arcade value) and then returns to the attract screen; `Enter` during `GAME OVER` starts a new match at once.
+
 ---
 
 ## 2. Core Entities
@@ -399,7 +407,7 @@ Because so much of the ghost behavior described in the dossier is precisely spec
 | 4   | Hard-mode jumper levels              | Documented as a hardware curiosity, not a core rule                      | Treat as optional/stretch feature, data-driven (§5.5)                                                                                                 |
 | 5   | Original PRNG bit-level reproduction | Described conceptually, not fully specified                              | Use a seeded PRNG with equivalent reseed events; exact bit-level parity not required unless frame-perfect "pattern" replay is an explicit goal (§3.4) |
 | 6   | Clyde's 8-tile check granularity     | Not stated whether continuous or per-intersection                        | Evaluate every tile-entry, for responsiveness consistent with the rest of the lookahead model (§4.4)                                                  |
-| 7   | Attract/title screen                 | Named in the game-flow outline (§9.3) but not specified                  | Undecided; not implemented. Launch enters `READY!` directly and `GAME OVER` waits for `Enter`                                                         |
+| 7   | Attract/title screen                 | Named in the game-flow outline (§9.3) but not specified                  | Decided (§1.9): attract presentation implemented without demo play; `Enter` replaces the coin insert and starts a single-player match; `GAME OVER` returns to the attract screen after three seconds |
 
 ---
 

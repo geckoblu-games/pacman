@@ -568,7 +568,7 @@ func TestReadyIntroTiming(t *testing.T) {
 	}
 	state.Tick()
 	if state.Phase != PhaseGameOver || state.MazeFlashWhite() {
-		t.Fatal("ticking after game over should do nothing")
+		t.Fatal("ticking after game over should only count toward the attract return")
 	}
 }
 

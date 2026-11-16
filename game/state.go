@@ -21,6 +21,8 @@ const (
 	DeathFrameTicks = 12
 	// GhostCaptureTicks is the one-second score display after eating a ghost.
 	GhostCaptureTicks = 60
+	// GameOverTicks is the three-second GAME OVER display before the attract screen returns.
+	GameOverTicks = 180
 )
 
 // Phase identifies the current stage of the match lifecycle.
@@ -39,22 +41,29 @@ const (
 	PhaseDying
 	// PhaseGhostCaptured freezes play while the captured ghost's score is shown.
 	PhaseGhostCaptured
-	// PhaseGameOver marks a match with no remaining lives.
+	// PhaseGameOver shows the result of a match with no remaining lives until Tick
+	// returns to the attract screen or a new match starts.
 	PhaseGameOver
+	// PhaseAttract runs the attract-mode presentation without a match until a new match starts.
+	PhaseAttract
 )
 
 // GameState stores the session record, current phase, and optional active match.
 type GameState struct {
 	// HighScore is the record, optionally loaded and persisted by the application.
 	HighScore int
+	// LastScore is the final score of the previous match, shown as 1UP on the attract screen.
+	LastScore int
 	// Phase controls which match operations are currently valid.
 	Phase Phase
 	// PhaseTicks counts 60 Hz ticks elapsed in the current timed phase.
 	PhaseTicks int
 	// Paused freezes Tick and gameplay input until TogglePause clears it.
 	Paused bool
-	// Match is nil until a match is started.
+	// Match is nil until a match is started and while the attract screen is shown.
 	Match *MatchState
+	// Attract stores the attract presentation; it is meaningful only in PhaseAttract.
+	Attract AttractState
 	// Random draws bonus durations; nil creates an unpredictably seeded generator on first use.
 	Random *rand.Rand
 }
@@ -106,7 +115,8 @@ type GhostCaptureState struct {
 }
 
 // StartNewMatch resets score, lives, and level while retaining the session record.
-// The new match starts unpaused in the ready intro.
+// The new match starts unpaused in the ready intro, replacing the attract screen or a
+// finished match.
 func (state *GameState) StartNewMatch() {
 	state.Match = &MatchState{Lives: InitialLives, Level: NewLevelState(1), PacMan: NewPacManState(), Blinky: NewBlinky()}
 	state.Match.Pinky = newPinky(state.Match.Blinky.ghostClock, false)
@@ -115,6 +125,18 @@ func (state *GameState) StartNewMatch() {
 	state.Match.releasePersonalGhosts()
 	state.Paused = false
 	state.enterPhase(PhaseReady)
+}
+
+// EnterAttract discards the current match, if any, remembering its score as LastScore,
+// and starts the attract presentation from its first tick, unpaused.
+func (state *GameState) EnterAttract() {
+	if state.Match != nil {
+		state.LastScore = state.Match.Score
+	}
+	state.Match = nil
+	state.Paused = false
+	state.Attract = newAttractState()
+	state.enterPhase(PhaseAttract)
 }
 
 // TogglePause flips the pause flag of a match that is not over and reports the new
@@ -134,13 +156,24 @@ func (state *GameState) enterPhase(phase Phase) {
 	state.PhaseTicks = 0
 }
 
-// Tick advances the timed phases or active fruit and ghost timers by one 60 Hz tick.
+// Tick advances the attract presentation, the timed phases, or active fruit and ghost
+// timers by one 60 Hz tick. Game over returns to the attract screen after GameOverTicks.
 // Other phases and a paused match are unaffected.
 func (state *GameState) Tick() {
+	if state.Phase == PhaseAttract {
+		state.PhaseTicks++
+		state.Attract.Tick()
+		return
+	}
 	if state.Match == nil || state.Paused {
 		return
 	}
 	switch state.Phase {
+	case PhaseGameOver:
+		state.PhaseTicks++
+		if state.PhaseTicks >= GameOverTicks {
+			state.EnterAttract()
+		}
 	case PhaseGhostCaptured:
 		state.PhaseTicks++
 		if state.PhaseTicks >= GhostCaptureTicks {

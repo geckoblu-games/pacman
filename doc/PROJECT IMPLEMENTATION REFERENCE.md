@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Pacman is a Go desktop application built with Ebitengine v2.8.8. Its renderer-independent game state owns the match lifecycle, scoring, collectibles, the bonus fruit, Pac-Man and all four ghosts. Audio is not implemented yet.
+Pacman is a Go desktop application built with Ebitengine v2.8.8. Its renderer-independent game state owns the attract-mode presentation, the match lifecycle, scoring, collectibles, the bonus fruit, Pac-Man and all four ghosts. Audio is not implemented yet.
 
 ## Project Structure
 
@@ -29,11 +29,14 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. Its renderer-in
 |-- game/
 |   |-- game.go
 |   |-- game_test.go
+|   |-- attract.go
+|   |-- attract_test.go
 |   |-- fruit.go
 |   |-- ghost.go
 |   |-- ghost_test.go
 |   |-- pacman.go
 |   |-- pacman_test.go
+|   |-- sceneattract.go
 |   |-- sceneplay.go
 |   |-- spritepacman.go
 |   |-- state.go
@@ -45,6 +48,8 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. Its renderer-in
 `-- doc/
     |-- PROJECT IMPLEMENTATION REFERENCE.md
     |-- Pacman_Clone_Design_Dossier.md
+    |-- Pac-Man Attract Mode (Introductory Screen).md
+    |-- Pac-Man Attract Mode (Introductory Screen).png
     |-- go-ebiten-implementation-proposal.md
     |-- ReferenceMap.png
     |-- TilesWalls_sketch.pdf
@@ -61,14 +66,16 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. Its renderer-in
 
 ### `game/`
 
-- `game.go` owns the Ebitengine `Game` implementation and session state. Its `Update` and `Draw` callbacks delegate to its `ScenePlay`, while `Layout` returns the logical dimensions. `Update` observes phase entry before and after the scene update, calling the optional `SaveHighScore` callback at level completion and game over. Checking before the update also handles a checkpoint reached between updates, before input can start a new match or advance a timed phase. Save failures are logged once per checkpoint, not once per tick. `game_test.go` verifies checkpoint persistence and retry timing as well as the AllowedPath matrix, bottom-HUD geometry, bonus sprite loading, shared state, the automatic READY! intro at startup, and delegation of timed level advancement and rendering.
-- `sceneplay.go` maps input, advances the state and actors while unpaused, and composes the screen. Ghosts' normal, frightened and returning-eyes sprites use the simulation state and are duplicated across tunnel edges. It renders the capture score, death sequence and red GAME OVER according to the simulation phase.
+- `game.go` owns the Ebitengine `Game` implementation and session state. Its `Update` and `Draw` callbacks delegate to its `ScenePlay`, while `Layout` returns the logical dimensions. `New` starts on the attract screen. `Update` observes phase entry before and after the scene update, calling the optional `SaveHighScore` callback at level completion and game over. Checking before the update also handles a checkpoint reached between updates, before input can start a new match or advance a timed phase. Save failures are logged once per checkpoint, not once per tick. `game_test.go` verifies checkpoint persistence and retry timing as well as the AllowedPath matrix, bottom-HUD geometry, bonus sprite loading, shared state, the attract start and loop at launch, read-only attract drawing, the READY! intro of a started match, and delegation of timed level advancement and rendering.
+- `attract.go` defines the renderer-independent attract presentation: `AttractState` with its tick counter, the chase Pac-Man (a `PacManState` reusing the mouth animation), the four `AttractGhost` entries, the decoy and capture progress; the reveal timeline tables; the source-pixel geometry and speeds converted to logical pixels; `Tick`, which restarts the cycle at `AttractCycleTicks`; and the visibility, mode and capture-score queries used by the renderer. `attract_test.go` exercises the timeline, chase, reversal, capture sequence and restart headlessly, plus `EnterAttract` and the timed return from game over.
+- `sceneattract.go` draws the attract screen from `AttractState` and the session scores: top HUD, cast table, legend with a half-size `PTS` suffix, copyright and credit lines, decoy energizer, chase actors and capture scores. It reuses the ghost frame selection and Pac-Man sprite of the play scene without tunnel wrapping.
+- `sceneplay.go` maps input, advances the state and actors while unpaused, and composes the screen. In `PhaseAttract` its `Draw` delegates to `sceneattract.go`. `Enter` replaces the arcade coin insert: from the attract screen or `GAME OVER` it starts a new match at once (a `TODO(audio)` marks where the coin-insert sound belongs). The top HUD shows `1UP`, `HIGH SCORE` and `2UP`; scores use the arcade's two-digit minimum, so zero reads `00`. Ghosts' normal, frightened and returning-eyes sprites use the simulation state and are duplicated across tunnel edges. It renders the capture score, death sequence and red GAME OVER according to the simulation phase.
 - `fruit.go` defines the renderer-independent bonus: `FruitState` (visibility, remaining ticks, score-popup ticks and value), its per-tick timer advance, the half-cell overlap test, the fixed center `FruitX`/`FruitY` (screen center, zero-based row 20), the 70/170 eaten-collectible triggers, the 540–600 tick duration range, the 120-tick popup, and the one-tick eating pause. Spawning, scoring, and phase guards live in `GameState`.
 - `ghost.go` owns ghost movement, shared direction selection and mode clock, targeting, frightened behavior, Elroy, house traversal, and actor collision updates. `ghost_test.go` exercises these rules headlessly.
 - `pacman.go` defines renderer-independent player position, direction, speed conversion, buffered tile turns, immediate reversal on opposite input, early/late diagonal cornering, wall blocking, continuous side-tunnel traversal, the starting row, and the deterministic mouth-animation cycle. Tunnel coordinates pass beyond one screen edge before wrapping while preserving the remaining movement distance.
 - `pacman_test.go` checks level-speed movement, corridor reversal, buffered turns, early and late diagonal cornering, wall blocking, respawn positioning, and the mouth-animation cycle without initializing Ebitengine.
-- `spritepacman.go` draws the selected directional or death frame at the simulation position and repeats it across the opposite screen edge when clipped. The first death frames rotate the mouth toward up.
-- `state.go` defines the pure Go session and match state and their transitions, using `LevelState` and `FruitState`, plus the tick-driven level-clear and READY! timers, bonus spawning and consumption, and the injectable random generator; `state_test.go` tests them without initializing Ebitengine.
+- `spritepacman.go` draws the selected directional or death frame at the simulation position and repeats it across the opposite screen edge when clipped; `DrawUnwrapped` omits the wrapped copy for the attract chase. The first death frames rotate the mouth toward up.
+- `state.go` defines the pure Go session and match state and their transitions, using `LevelState`, `FruitState` and `AttractState`, plus the tick-driven attract, level-clear, READY! and game-over timers, bonus spawning and consumption, and the injectable random generator; `state_test.go` tests them without initializing Ebitengine.
 - `level.go` contains level-specific types, data, and behavior: `LevelState`, `LevelParameters`, `NewLevelState`, bonus-symbol history, collectible consumption, the private level parameter table, `ParametersForLevel`, and the base speed. Its code has no rendering dependencies. `LevelState.ConsumeCollectible` updates presence flags and the remaining count and returns 10 or 50 points, or zero when nothing is consumed. Match phase checks, score updates, and the transition to `PhaseLevelComplete` remain in `GameState`.
 - `level_test.go` verifies collectible initialization and idempotence and compares all level parameter rows with the dossier.
 - `constants.go` defines logical display/grid dimensions, scale, debug switches (both off by default) and `GhostMovementEnabled` (default true).
@@ -81,7 +88,7 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. Its renderer-in
 - `walls.png` is the pixel reference for the transparent maze-wall layer and must match the logical screen dimensions exactly. It contains 19,168 opaque blue pixels (`#2121FF`), 128 opaque pink ghost-house-door pixels (`#FFB8FF`), and 238,752 transparent pixels.
 - `walls.go` scans the reference into same-color horizontal runs and draws them once as integer-aligned Ebitengine vector rectangles without antialiasing. `GameImages.Walls` preserves the original pixels; `GameImages.WallsWhite` replaces only blue pixels with opaque white, preserving the pink door and transparency. The renderer draws the white version during the white segments of the level-clear flash and the blue version otherwise. `walls_test.go` reads back both generated images inside an Ebitengine loop and checks every RGBA pixel against the reference and the specified blue-to-white replacement.
 - The four `icon_*.png` files provide window-manager icon choices at multiple sizes.
-- `PressStart2P-Regular.ttf` is embedded and loaded once for the top-center `HIGH SCORE` label.
+- `PressStart2P-Regular.ttf` is embedded and loaded twice: at the HUD size for labels, scores and messages, and at half size for the attract legend's `PTS` suffix.
 
 ### `highscore/`
 
@@ -93,15 +100,15 @@ The persistence module can be used by Android and iOS hosts, but the application
 
 ### `doc/`
 
-This directory contains documentation and reference material. `Pacman_Clone_Design_Dossier.md` is the gameplay requirements baseline with FACT/ASSUMPTION/DECISION labels; `The Pac-Man Dossier.md` (with its `tpmd_images/` and the original HTML) is the local copy of the source article, read by `level_test.go` to validate the parameter table; `go-ebiten-implementation-proposal.md` is a non-binding architecture proposal. The reference map image and the wall-tile sketch PDF were used to derive the maze. None of these files is read by the runtime; the runtime maze is `assets/walls.png` and the path coordinates are compiled into `game/constsantsmaze.go`.
+This directory contains documentation and reference material. `Pacman_Clone_Design_Dossier.md` is the gameplay requirements baseline with FACT/ASSUMPTION/DECISION labels; `The Pac-Man Dossier.md` (with its `tpmd_images/` and the original HTML) is the local copy of the source article, read by `level_test.go` to validate the parameter table; `Pac-Man Attract Mode (Introductory Screen).md` is the source specification of the attract screen's layout and timeline, in the arcade's 8-pixel tile coordinates; its companion PNG is the visual reference for cast-table alignment; `go-ebiten-implementation-proposal.md` is a non-binding architecture proposal. The reference map image and the wall-tile sketch PDF were used to derive the maze. None of these files is read by the runtime; the runtime maze is `assets/walls.png` and the path coordinates are compiled into `game/constsantsmaze.go`.
 
 ## Runtime and Rendering Flow
 
 1. `main` derives the initial window size by multiplying `ScreenWidth` and `ScreenHeight` by `ScreenScale` and rounding each dimension to an integer.
 2. It configures the title and loads all four window icons through the `assets` package.
-3. `game.New` creates `ScenePlay` with a pointer to its session state. The scene calls `assets.LoadGameImages` with the expected logical screen size and loads the HUD font. The image loader validates `walls.png`, generates pixel-perfect blue and white wall images from rectangles, and crops sprites from `classic-tileset.png`. A missing, undecodable, or incorrectly sized image prevents startup with an error.
-4. `game.New` starts in `PhaseReady`. `ScenePlay.Update` handles Enter and P, advances phase, fruit and ghost timers with `Tick`, then updates actors during play. Pac-Man consumes collectibles and fruit before the ghosts move; discrete tile-occupancy collision checks follow their movements, in Blinky, Pinky, Inky, Clyde order. A frightened collision starts a score pause; a fatal collision starts the timed death sequence; the final collectible starts the level flash immediately. On leaving the score pause, actors appear at their capture positions before moving on the next tick. There is no audio yet.
-5. `Draw` composes the maze, collectibles, fruit, Pac-Man, all four ghosts, overlays and HUD. The death sequence shows the frozen scene, then Pac-Man's generated implosion and spark, then an empty maze; after the last life it displays red `GAME OVER`. Ghosts are also hidden during level clear and drawn as eyes when eaten. Drawing does not mutate simulation state.
+3. `game.New` creates `ScenePlay` with a pointer to its session state. The scene calls `assets.LoadGameImages` with the expected logical screen size and loads the HUD and small fonts. The image loader validates `walls.png`, generates pixel-perfect blue and white wall images from rectangles, and crops sprites from `classic-tileset.png`. A missing, undecodable, or incorrectly sized image prevents startup with an error.
+4. `game.New` starts in `PhaseAttract` with no match. `ScenePlay.Update` handles Enter and P, then calls `Tick`: in the attract phase this advances the presentation; otherwise it advances phase, fruit and ghost timers, then actors are updated during play. Pac-Man consumes collectibles and fruit before the ghosts move; discrete tile-occupancy collision checks follow their movements, in Blinky, Pinky, Inky, Clyde order. A frightened collision starts a score pause; a fatal collision starts the timed death sequence; the final collectible starts the level flash immediately. On leaving the score pause, actors appear at their capture positions before moving on the next tick. `GAME OVER` returns to the attract screen after `GameOverTicks`. There is no audio yet.
+5. `Draw` renders the attract screen in `PhaseAttract`; otherwise it composes the maze, collectibles, fruit, Pac-Man, all four ghosts, overlays and HUD. The death sequence shows the frozen scene, then Pac-Man's generated implosion and spark, then an empty maze; after the last life it displays red `GAME OVER`. Ghosts are also hidden during level clear and drawn as eyes when eaten. Drawing does not mutate simulation state.
 6. `Layout` always returns the logical dimensions. Ebitengine scales that fixed-resolution image to the window; resizing does not change the game's grid or logical coordinates.
 7. Persistence is configured by `main`, not by `game.New`, so constructing a game in tests never accesses user data. The loaded record is assigned before entering the event loop. Entering `PhaseLevelComplete` saves the final collectible's score immediately, before the flash advances; entering `PhaseGameOver` is another checkpoint. After `RunGame` returns, `main` attempts a final save even during an unfinished match. Abrupt process termination is not a normal window closure and may lose points since the last successful checkpoint.
 
@@ -133,11 +140,12 @@ The overlays are composed around, rather than baked into, the permanent wall ima
 
 ### Game state and lifecycle
 
-`Game.State` owns a `GameState`. Its zero value has `PhaseWaiting` and no match. `HighScore` is retained across matches and is loaded and persisted across application runs by the desktop application. Simulation methods do not perform I/O. `PhaseTicks` counts the 60 Hz ticks elapsed in the current timed phase and is reset by every phase change. `Paused` freezes `Tick` and actor updates. `Random` controls fruit durations; ghosts share a separate deterministic generator reset on life loss or level start. `MatchState` contains score, lives, level, Pac-Man, all four ghosts and fruit.
+`Game.State` owns a `GameState`. Its zero value has `PhaseWaiting` and no match; `game.New` immediately calls `EnterAttract`. `HighScore` is retained across matches and is loaded and persisted across application runs by the desktop application. `LastScore` remembers the previous match's final score for the attract screen's `1UP` field. Simulation methods do not perform I/O. `PhaseTicks` counts the 60 Hz ticks elapsed in the current timed phase and is reset by every phase change. `Paused` freezes `Tick` and actor updates during a match. `Random` controls fruit durations; ghosts share a separate deterministic generator reset on life loss or level start. `MatchState` contains score, lives, level, Pac-Man, all four ghosts and fruit. `Attract` holds the presentation described below.
 
-- `StartNewMatch` creates level 1 with score 0 and 3 lives in `PhaseReady`, unpaused, preserving the session record.
+- `EnterAttract` discards any match, storing its score in `LastScore`, clears pause, and starts a fresh `AttractState` in `PhaseAttract`. `Tick` advances the presentation every tick regardless of `Paused`; `TogglePause` is rejected without a match.
+- `StartNewMatch` creates level 1 with score 0 and 3 lives in `PhaseReady`, unpaused, preserving the session record. It is the only way out of the attract screen.
 - `TogglePause` flips `Paused` during a match that is not over and returns the new value. Without a match or after game over it clears the flag and returns false.
-- `Tick` advances the timed phases by one tick. During death and ghost capture, fruit and ghost timers remain frozen. In `PhasePlaying` it advances them even when ghost movement is disabled. It does nothing without a match, while paused, or in untimed phases.
+- `Tick` advances the timed phases by one tick. During death and ghost capture, fruit and ghost timers remain frozen. In `PhasePlaying` it advances them even when ghost movement is disabled. In `PhaseGameOver` it counts `GameOverTicks` (180, three seconds) and then calls `EnterAttract`. It does nothing without a match, while paused, or in untimed phases.
 - `MazeFlashWhite` reports whether the maze is currently white. The 120-tick flash is divided into `2 * LevelClearFlashes` (eight) equal 15-tick segments; even segments are white and odd segments blue, so the flash begins white and ends blue, producing exactly four white flashes.
 - `BeginPlaying` transitions from ready to playing. `Tick` invokes it when the intro expires; tests call it directly to skip the intro.
 - `AddScore` accepts positive points only during play and updates the session record immediately. Bonus lives and score overflow rules are not implemented.
@@ -147,7 +155,15 @@ The overlays are composed around, rather than baked into, the permanent wall ima
 - `LoseLife` enters `PhaseDying` without moving actors or deducting a life. The first 60 ticks preserve the collision pose and fruit; the next 120 hide ghosts and fruit and display ten 12-tick animation frames (including the spark); the last 60 show no actors. At tick 240 one life is deducted, actors and ghost timers reset, and READY or game over begins. Score and collectibles are preserved. Elroy is suspended until Clyde starts exiting the house.
 - `PhaseGhostCaptured` lasts 60 ticks. Pac-Man and the captured ghost are hidden, the other ghosts remain visible, and the score is drawn at the captured ghost's collision position. All movement and fruit/ghost timers are frozen, including the frightened timer. The score is awarded immediately and doubles from 200 through 1,600 based on `GhostStreak`, which resets on another energizer, frightened expiry, life loss or a new level. When the pause ends the captured ghost becomes returning eyes. There is no extra 12,000-point bonus.
 
-The game-over result remains available until a new match starts. State methods are independent of assets, rendering, wall-clock time, and Ebitengine. Fields are exposed for rendering; callers should use transition methods to mutate gameplay state.
+The game-over result remains visible for `GameOverTicks` or until a new match starts. State methods are independent of assets, rendering, wall-clock time, and Ebitengine. Fields are exposed for rendering; callers should use transition methods to mutate gameplay state.
+
+### Attract screen
+
+The attract screen follows `doc/Pac-Man Attract Mode (Introductory Screen).md`, whose coordinates use the arcade's 8-pixel tiles and 16-pixel sprites. `attract.go` keeps the source values (`attractPacManStartX = 236`, speeds 1.35/1.42/0.65 px per frame, 18-pixel ghost spacing) and converts them with `attractSourceScale = CellSize / 8`. The source's sprite positions are read as top-left corners of 16-pixel sprites and converted to centers (`attractSourceCenter`), so the chase actors enter at logical x 488 (Pac-Man) and 532, 568, 604, 640 (ghosts). The chase runs along the center of zero-based row 20, the row of the decoy energizer in tile (3, 20); this keeps Pac-Man's center on the decoy's center rather than reproducing the source's 4-pixel vertical offset.
+
+Timeline (ticks at 60 Hz): the HUD, `CHARACTER / NICKNAME`, copyright and `CREDIT  0` are drawn from tick 0; ghost sprites appear at 60, 150, 240, 330 and their character/nickname texts at 120, 210, 300, 390; the legend (`10 PTS`, `50 PTS`) and the decoy energizer appear at 450; from 510 both energizers flash 10 ticks on, 10 off and the actors enter moving left. Pac-Man eats the decoy when his center reaches the decoy's center (tick 670 with these speeds); the decoy disappears, Pac-Man and the ghosts reverse to the right, and the ghosts become blue and slow. Each time Pac-Man's center reaches an uncaptured ghost's center, that ghost is captured: everything freezes for 45 ticks while Pac-Man and the ghost are hidden and 200, 400, 800 or 1600 is drawn in light blue at the ghost's position; the ghost never reappears. Capture ticks are emergent from the speeds (686, 757, 827 and 898), not the source's approximate 720/810/900/990. Pac-Man then leaves the screen to the right (tick 1001) and the static screen remains until tick 1170, when the presentation restarts from tick 0. There is no demo play, no `PUSH START BUTTON` screen and no two-player option; the attract screen is silent like the arcade's.
+
+Rendering choices in `sceneattract.go`: the top HUD matches the play screen (`1UP` at column 3, `HIGH SCORE` at 9, `2UP` at 22, scores right-aligned at columns 6 and 15) and `1UP` shows `LastScore` (`00` at launch). Table ghosts are drawn facing right with the normal animation. Their visible centers (logical x 80 and y `row*CellSize+6` for text rows 7, 10, 13, 16) and the text's visual top at `row*CellSize` align each icon with its character and nickname in the companion PNG reference. Character descriptions start at column 7 with a space after the hyphen; quoted nicknames start at column 18, and both are drawn in the ghost's color (red, `#FFB8FF`, cyan, `#FFB852`). The legend reuses the in-game 2-pixel coin and the energizer sprite centered on column 10 of rows 24 and 26, values at column 12, and `PTS` at column 15 in an 8-pixel face aligned to the value's baseline. The copyright `© 1980 MIDWAY MFG.CO.` is pink at (4, 31) and `CREDIT  0` is white at (2, 35); there is no coin counter. Chase sprites are not duplicated across screen edges. `Enter` ends the attract screen by starting a match; the coin-insert sound is to be added at that point when audio exists.
 
 ### Level parameters
 
@@ -169,20 +185,20 @@ Pinky starts at the center of the house, Inky two tiles left and Clyde two tiles
 
 ### Controls
 
-`ScenePlay.Update` reads the keyboard directly. Arrow keys or WASD set Pac-Man's requested direction while held; `P` toggles pause; `Enter` starts a new match only when no match exists or the current one is over. The application starts a match automatically at launch, so `Enter` is normally needed only after `GAME OVER`. There is no gamepad or touch input.
+`ScenePlay.Update` reads the keyboard directly. Arrow keys or WASD set Pac-Man's requested direction while held; `P` toggles pause during a match; `Enter` starts a new match from the attract screen or from `GAME OVER`, replacing the arcade's coin insert and start button. The application launches on the attract screen. There is no gamepad or touch input.
 
 ### Not implemented
 
 The following are known gaps between the current code and the arcade or the design dossier; none is partially present in the code:
 
-- Audio: no sounds, no READY! jingle. The intro ends purely on the `ReadyTicks` timer.
-- Attract/title screen: there is no menu or demo; launch enters READY! directly, and `GAME OVER` waits for `Enter`. `PhaseWaiting` exists only as the zero value before `game.New` starts the first match.
+- Audio: no sounds, no READY! jingle, no coin-insert effect on `Enter` (the hook is marked in `ScenePlay.Update`). The intro ends purely on the `ReadyTicks` timer.
+- Attract demo play (Phase D of the attract specification) and the `PUSH START BUTTON` / player-count screen: the presentation loops back to its first tick instead, and `Enter` starts the single-player match directly. `PhaseWaiting` exists only as the zero value before `game.New` enters the attract screen.
 - No score-awarded extra lives (project decision; see §5.6 of the design dossier); score cap or overflow behavior is also not implemented.
 - Arcade intermissions (cutscenes), the level-256 overflow, and the hard-difficulty jumper.
 - Exit-capture wall-traversal bug: not reproduced.
 - Configurable window scale or fullscreen; mobile packaging and lifecycle hosts (see `highscore/` above).
 
-Natural ownership boundaries for this work are: new scenes or phases belong in `state.go` (phase and transitions) and `sceneplay.go` (input and drawing); audio would be a presentation concern driven by phase changes, not a simulation dependency; and new per-level rules belong in the `level.go` parameter table.
+Natural ownership boundaries for this work are: new scenes or phases belong in `state.go` (phase and transitions), with dedicated simulation files such as `attract.go` when they carry their own state, and in `sceneplay.go` or a companion drawing file such as `sceneattract.go` (input and drawing); audio would be a presentation concern driven by phase changes, not a simulation dependency; and new per-level rules belong in the `level.go` parameter table.
 
 ## Build and Verification
 
@@ -193,12 +209,12 @@ go run .
 go build -o pacman .
 ```
 
-The state tests cover new-match initialization, session record retention, life loss and game over, pause toggling and freezing, collectible idempotence, level completion and progression, and rejected operations outside active play. They also compare all 21 parameter rows directly with the local dossier and verify parameter loading through progression, new-match reset, and the 21+ fallback without mutating the shared table. Bonus-strip tests cover current-first ordering, duplicated symbols, the seven-icon limit, insertion and shifting on advancement, preservation after death, and reset on a new match. Bonus-fruit tests use seeded generators to cover the 70/170 triggers, the 540–600 tick range and its randomness, expiry, the half-cell overlap rule, level-dependent scoring, the popup duration, the one-tick pause, and removal on life loss, level clear, and advancement. Pac-Man and ghost tests cover the movement, targeting, mode schedule, fright, red-zone, tunnel, pass-through, capture, eyes, Elroy and ghost-house rules listed in the design dossier's §8 checklist. The dossier is read only by tests, not by the runtime. Simulation tests can run without a display or Ebitengine initialization by naming the non-rendering files (`game.go`, `sceneplay.go` and `spritepacman.go` import Ebitengine and are excluded):
+The state tests cover new-match initialization, session record retention, life loss and game over, pause toggling and freezing, collectible idempotence, level completion and progression, and rejected operations outside active play. They also compare all 21 parameter rows directly with the local dossier and verify parameter loading through progression, new-match reset, and the 21+ fallback without mutating the shared table. Attract tests cover the reveal timeline, energizer flashing, entrance positions, the leftward chase and reversal at the decoy, the ordered captures with doubling scores and frozen 45-tick pauses, the cycle restart, `EnterAttract`, and the timed return from game over. Bonus-strip tests cover current-first ordering, duplicated symbols, the seven-icon limit, insertion and shifting on advancement, preservation after death, and reset on a new match. Bonus-fruit tests use seeded generators to cover the 70/170 triggers, the 540–600 tick range and its randomness, expiry, the half-cell overlap rule, level-dependent scoring, the popup duration, the one-tick pause, and removal on life loss, level clear, and advancement. Pac-Man and ghost tests cover the movement, targeting, mode schedule, fright, red-zone, tunnel, pass-through, capture, eyes, Elroy and ghost-house rules listed in the design dossier's §8 checklist. The dossier is read only by tests, not by the runtime. Simulation tests can run without a display or Ebitengine initialization by naming the non-rendering files (`game.go`, `sceneplay.go`, `sceneattract.go` and `spritepacman.go` import Ebitengine and are excluded):
 
 ```sh
-go test game/state.go game/fruit.go game/pacman.go game/ghost.go game/constants.go game/constsantsmaze.go game/level.go game/state_test.go game/level_test.go game/pacman_test.go game/ghost_test.go
+go test game/state.go game/fruit.go game/pacman.go game/ghost.go game/attract.go game/constants.go game/constsantsmaze.go game/level.go game/state_test.go game/level_test.go game/pacman_test.go game/ghost_test.go game/attract_test.go
 ```
 
 Persistence unit tests also run without a display: `go test ./highscore`. All filesystem tests use temporary directories, not the user's high-score file.
 
-`go test ./...` also tests bottom-HUD symmetry, spacing, screen bounds, and loading of every bonus sprite, and compiles the graphics integration. It requires Ebitengine's native dependencies and a display on Linux (or a virtual display such as `xvfb-run -a go test ./...`). Actual window rendering is not covered by these tests. There is no continuous-integration workflow in the repository; tests are run locally.
+`go test ./...` also tests bottom-HUD symmetry, spacing, screen bounds, loading of every bonus sprite, the attract start and read-only attract drawing, and compiles the graphics integration. It requires Ebitengine's native dependencies and a display on Linux (or a virtual display such as `xvfb-run -a go test ./...`). Actual window rendering is not covered by these tests. There is no continuous-integration workflow in the repository; tests are run locally.

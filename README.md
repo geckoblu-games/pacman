@@ -1,7 +1,8 @@
 # Pacman
 A recreation of the arcade game "Pacman" written in GO.
 
-Implemented: the full maze with 244 collectibles, Pac-Man movement with cornering,
+Implemented: the arcade attract screen (cast table, point legend and corridor chase,
+without demo play), the full maze with 244 collectibles, Pac-Man movement with cornering,
 the four ghosts with their arcade targeting, scatter/chase schedule, frightened mode
 and ghost-house release rules, Cruise Elroy, bonus fruit, the death and level-clear
 sequences, pause, and a persistent high score. Sound is not implemented yet.
@@ -57,7 +58,9 @@ go run .
 ```
 
 The first command downloads dependencies and generates `go.sum`.
-A match starts automatically with the `READY!` intro. To exit, close the window.
+The game opens on the arcade-style attract screen; press `Enter` (the equivalent of
+inserting a coin) to start a match with the `READY!` intro. After `GAME OVER` the
+attract screen returns after three seconds. To exit, close the window.
 
 ### Controls
 
@@ -65,7 +68,7 @@ A match starts automatically with the `READY!` intro. To exit, close the window.
 | --- | --- |
 | Arrow keys or `W` `A` `S` `D` | Steer Pac-Man (held direction is buffered until the turn is possible) |
 | `P` | Pause / resume |
-| `Enter` | Start a new match after `GAME OVER` |
+| `Enter` | Start a match from the attract screen or after `GAME OVER` |
 
 ### Debugging
 
@@ -80,7 +83,7 @@ The simulation tests run without a display:
 
 ```sh
 go test ./highscore
-go test game/state.go game/fruit.go game/pacman.go game/ghost.go game/constants.go game/constsantsmaze.go game/level.go game/state_test.go game/level_test.go game/pacman_test.go game/ghost_test.go
+go test game/state.go game/fruit.go game/pacman.go game/ghost.go game/attract.go game/constants.go game/constsantsmaze.go game/level.go game/state_test.go game/level_test.go game/pacman_test.go game/ghost_test.go game/attract_test.go
 ```
 
 `go test ./...` also exercises the rendering integration and needs a display
