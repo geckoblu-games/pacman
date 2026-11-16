@@ -809,3 +809,334 @@ func TestPinkyFrozenCollision(t *testing.T) {
 		t.Fatal("a frozen Pinky should still be dangerous")
 	}
 }
+
+// TestInkyTarget checks all offsets, the up bug, and Blinky's live position.
+func TestInkyTarget(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	match := state.Match
+	match.Level.Remaining = 1
+	match.PacMan.X, match.PacMan.Y = float64(10*CellSize+CellSize/2), float64(10*CellSize+CellSize/2)
+	match.Blinky.X, match.Blinky.Y = float64(6*CellSize+CellSize/2), float64(7*CellSize+CellSize/2)
+	match.Inky.Mode = GhostChase
+	for _, test := range []struct {
+		// direction is Pac-Man's movement.
+		direction Direction
+		// x and y are the expected target coordinates.
+		x, y int
+	}{
+		{DirectionUp, 10, 9},
+		{DirectionLeft, 10, 13},
+		{DirectionDown, 14, 17},
+		{DirectionRight, 18, 13},
+	} {
+		match.PacMan.Direction = test.direction
+		x, y := match.Inky.target(match.Level, match.PacMan)
+		if x != test.x || y != test.y {
+			t.Errorf("direction %v: got (%d,%d), want (%d,%d)", test.direction, x, y, test.x, test.y)
+		}
+	}
+	match.PacMan.Direction, match.PacMan.lastDirection = DirectionNone, DirectionUp
+	match.Blinky.X += 3 * CellSize
+	if x, y := match.Inky.target(match.Level, match.PacMan); x != 7 || y != 9 {
+		t.Fatal("Inky should use Pac-Man's last facing and Blinky's current tile")
+	}
+	match.Inky.Mode = GhostScatter
+	if x, y := match.Inky.target(match.Level, match.PacMan); x != 27 || y != 35 ||
+		match.Inky.speedPercent(match.Level) != match.Level.Parameters.GhostSpeedPercent {
+		t.Fatal("Inky should use the bottom-right scatter target without Elroy speed")
+	}
+	match.Inky.Mode = GhostEaten
+	if x, y := match.Inky.target(match.Level, match.PacMan); x != 13 || y != 14 {
+		t.Fatal("Inky's eyes should use the shared house target")
+	}
+}
+
+// TestInkyPersonalRelease checks level-one dots, revival, and zero limits on later levels.
+func TestInkyPersonalRelease(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	match := state.Match
+	if match.Inky.houseStage != 4 || match.Inky.X != float64(ScreenWidth)/2-2*CellSize {
+		t.Fatal("Inky should start waiting on the left side of the house")
+	}
+	for _, coord := range CoinCoords[:29] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if match.InkyDots != 29 || match.Inky.houseStage != 4 {
+		t.Fatal("Inky should still wait after 29 collectibles")
+	}
+	coord := EnergizerCoords[0]
+	state.ConsumeCollectible(coord[0], coord[1])
+	if match.InkyDots != 30 || match.Inky.houseStage != 5 {
+		t.Fatal("the thirtieth collectible should release Inky")
+	}
+	for tick := 0; tick < 200 && match.Inky.houseStage != 0; tick++ {
+		match.Inky.Update(match.Level, match.PacMan)
+	}
+	if match.Inky.houseStage != 0 || match.Inky.Direction != DirectionLeft {
+		t.Fatal("Inky should align with the door, exit, and turn left")
+	}
+	match.Inky.houseStage = 4
+	match.Inky.X = float64(ScreenWidth) / 2
+	state.UpdateActors(DirectionNone, false)
+	if match.Inky.houseStage != 3 {
+		t.Fatal("a revived Inky should retain his reached personal limit")
+	}
+	for number := 2; number <= 3; number++ {
+		state.enterPhase(PhaseLevelComplete)
+		state.AdvanceLevel()
+		if match.Level.Number != number || match.InkyDots != 0 || match.Inky.houseStage != 5 ||
+			match.Inky.blinky != &match.Blinky || match.Inky.ghostClock != match.Blinky.ghostClock {
+			t.Fatalf("level %d should reset Inky and immediately release him", number)
+		}
+	}
+}
+
+// TestInkyPostDeathRelease checks the global checkpoint and retained personal count.
+func TestInkyPostDeathRelease(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	for _, coord := range CoinCoords[:3] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	state.LoseLife()
+	finishDeath(t, &state)
+	state.BeginPlaying()
+	match := state.Match
+	if match.InkyDots != 3 || match.Inky.houseStage != 4 || !match.GlobalGhostCounter {
+		t.Fatal("death should preserve but disable Inky's personal counter")
+	}
+	for index, coord := range CoinCoords[3:35] {
+		state.ConsumeCollectible(coord[0], coord[1])
+		if index == 15 && match.Inky.houseStage != 4 {
+			t.Fatal("Inky should wait until the seventeenth post-death collectible")
+		}
+		if index == 16 && match.Inky.houseStage != 5 {
+			t.Fatal("the seventeenth post-death collectible should release Inky")
+		}
+	}
+	if !match.GlobalGhostCounter || match.InkyDots != 3 {
+		t.Fatal("Clyde's absence should keep the global counter active and personal count unchanged")
+	}
+	match.Inky.houseStage = 4
+	match.Inky.X = float64(ScreenWidth) / 2
+	state.UpdateActors(DirectionNone, false)
+	if match.Inky.houseStage != 4 {
+		t.Fatal("Inky should not be released again after missing his checkpoint")
+	}
+	for range 240 {
+		state.Tick()
+	}
+	if match.Inky.houseStage != 3 {
+		t.Fatal("anti-stall should eventually release revived Inky")
+	}
+}
+
+// TestInkyReleasePriority checks only the highest-priority waiting ghost is forced out.
+func TestInkyReleasePriority(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	state.LoseLife()
+	finishDeath(t, &state)
+	state.BeginPlaying()
+	for range 240 {
+		state.Tick()
+	}
+	if state.Match.Pinky.houseStage != 3 || state.Match.Inky.houseStage != 4 {
+		t.Fatal("the first anti-stall timeout should release Pinky only")
+	}
+	for range 240 {
+		state.Tick()
+	}
+	if state.Match.Inky.houseStage != 5 {
+		t.Fatal("the next timeout should release Inky")
+	}
+}
+
+// TestInkyCounterAfterForcedExit checks a partial personal count survives revival.
+func TestInkyCounterAfterForcedExit(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	match := state.Match
+	for _, coord := range CoinCoords[:7] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	for range 240 {
+		state.Tick()
+	}
+	if match.InkyDots != 7 || match.Inky.houseStage != 5 {
+		t.Fatal("anti-stall should leave the personal count intact")
+	}
+	for tick := 0; tick < 200 && match.Inky.houseStage != 0; tick++ {
+		match.Inky.Update(match.Level, match.PacMan)
+	}
+	if match.Inky.houseStage != 0 {
+		t.Fatal("forced Inky should leave the house")
+	}
+	match.Inky.Mode = GhostEaten
+	for tick := 0; tick < 5000 && match.Inky.Mode == GhostEaten; tick++ {
+		match.Inky.Update(match.Level, match.PacMan)
+	}
+	if match.Inky.houseStage != 4 || match.InkyDots != 7 {
+		t.Fatal("revived Inky should wait with his personal count intact")
+	}
+	for _, coord := range CoinCoords[7:29] {
+		state.ConsumeCollectible(coord[0], coord[1])
+	}
+	if match.InkyDots != 29 || match.Inky.houseStage != 4 {
+		t.Fatal("revived Inky should resume counting from the prior value")
+	}
+	coord := CoinCoords[29]
+	state.ConsumeCollectible(coord[0], coord[1])
+	if match.InkyDots != 30 || match.Inky.houseStage != 3 {
+		t.Fatal("the resumed counter should release Inky at 30")
+	}
+}
+
+// TestInkyCaptureAndModes checks shared timers, third-score capture, and eye return.
+func TestInkyCaptureAndModes(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	match := state.Match
+	match.Inky.houseStage = 0
+	match.Inky.X, match.Inky.Y = match.Blinky.X, match.Blinky.Y
+	match.Inky.Direction, match.Inky.turn, match.Inky.nextTurn = DirectionLeft, DirectionLeft, DirectionLeft
+	match.Blinky.X, match.Blinky.Y = float64(3*CellSize+CellSize/2), float64(4*CellSize+CellSize/2)
+	coord := EnergizerCoords[0]
+	state.ConsumeCollectible(coord[0], coord[1])
+	if match.Inky.Mode != GhostFrightened || match.Inky.ghostClock != match.Blinky.ghostClock {
+		t.Fatal("energizers should frighten Inky using the shared timer")
+	}
+	match.GhostStreak = 2
+	match.PacMan.X, match.PacMan.Y = match.Inky.X, match.Inky.Y
+	match.PacMan.EatingPauseTicks = 1
+	state.UpdateActors(DirectionNone, false)
+	if state.Phase != PhaseGhostCaptured || match.GhostCapture.Kind != GhostInky ||
+		match.GhostCapture.Points != 800 || state.GhostVisible(GhostInky) ||
+		!state.GhostVisible(GhostBlinky) || !state.GhostVisible(GhostPinky) {
+		t.Fatal("Inky's capture should award 800 and hide only Inky")
+	}
+	fright, blinky, pinky := match.Inky.frightTicks, match.Blinky, match.Pinky
+	for range GhostCaptureTicks {
+		state.Tick()
+	}
+	if match.Inky.Mode != GhostEaten || match.Inky.frightTicks != fright || match.Blinky != blinky || match.Pinky != pinky {
+		t.Fatal("capture should freeze other ghosts and timers before Inky becomes eyes")
+	}
+	for tick := 0; tick < 5000 && match.Inky.Mode == GhostEaten; tick++ {
+		match.Inky.Update(match.Level, match.PacMan)
+	}
+	if match.Inky.Mode != GhostScatter || match.Inky.houseStage != 4 {
+		t.Fatal("Inky's eyes should return and revive while his personal limit is unmet")
+	}
+}
+
+// TestInkyDoorCollision checks fatal and frightened collisions while Inky exits.
+func TestInkyDoorCollision(t *testing.T) {
+	for _, frightened := range []bool{false, true} {
+		state := GameState{}
+		state.StartNewMatch()
+		state.BeginPlaying()
+		match := state.Match
+		match.Blinky.X, match.Blinky.Y = float64(3*CellSize+CellSize/2), float64(4*CellSize+CellSize/2)
+		match.Inky.houseStage = 3
+		match.Inky.X, match.Inky.Y = float64(ScreenWidth)/2, float64(15*CellSize)-1
+		match.PacMan.X, match.PacMan.Y = match.Inky.X, match.Inky.Y
+		match.PacMan.EatingPauseTicks = 1
+		if frightened {
+			coord := EnergizerCoords[0]
+			state.ConsumeCollectible(coord[0], coord[1])
+		}
+		state.UpdateActors(DirectionNone, false)
+		if !frightened {
+			if state.Phase != PhaseDying {
+				t.Fatal("stationary Inky should be dangerous at the maze entrance")
+			}
+			continue
+		}
+		if state.Phase != PhaseGhostCaptured || match.GhostCapture.Kind != GhostInky {
+			t.Fatal("frightened Inky should be capturable at the maze entrance")
+		}
+		for range GhostCaptureTicks {
+			state.Tick()
+		}
+		if match.Inky.Mode != GhostEaten || match.Inky.houseStage != 2 {
+			t.Fatal("Inky's eyes should return into the house after capture at the door")
+		}
+	}
+}
+
+// TestThreeGhostCaptureSequence checks a single energizer awards 200, 400, and 800.
+func TestThreeGhostCaptureSequence(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	match := state.Match
+	match.Pinky.houseStage, match.Inky.houseStage = 0, 0
+	for index, ghost := range []*GhostState{&match.Blinky, &match.Pinky, &match.Inky} {
+		ghost.X = float64((3+index)*CellSize + CellSize/2)
+		ghost.Y = float64(4*CellSize + CellSize/2)
+	}
+	coord := EnergizerCoords[0]
+	state.ConsumeCollectible(coord[0], coord[1])
+	for index, ghost := range []*GhostState{&match.Blinky, &match.Pinky, &match.Inky} {
+		match.PacMan.X, match.PacMan.Y = ghost.X, ghost.Y
+		match.PacMan.EatingPauseTicks = 1
+		state.UpdateActors(DirectionNone, false)
+		want := 200 << index
+		if state.Phase != PhaseGhostCaptured || match.GhostCapture.Kind != ghost.Kind || match.GhostCapture.Points != want {
+			t.Fatalf("capture %d should award %d points for ghost %v", index+1, want, ghost.Kind)
+		}
+		for range GhostCaptureTicks {
+			state.Tick()
+		}
+	}
+	if match.Score != 1450 || match.GhostStreak != 3 {
+		t.Fatal("three captures and an energizer should award 1450 points")
+	}
+}
+
+// TestInkyNavigationAndFreeze checks long-running maze movement and disabled movement.
+func TestInkyNavigationAndFreeze(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	match := state.Match
+	match.Inky.startExit()
+	match.PacMan.EatingPauseTicks = 5000
+	x, y := match.Inky.X, match.Inky.Y
+	for range 420 {
+		state.Tick()
+		state.UpdateActors(DirectionNone, false)
+	}
+	if match.Inky.X != x || match.Inky.Y != y || match.Inky.Mode != GhostChase || !match.Inky.exitRight {
+		t.Fatal("disabled movement should preserve Inky's position but advance his mode")
+	}
+	exited := false
+	for tick := 0; tick < 3000; tick++ {
+		if tick%137 == 83 {
+			match.Inky.Frighten(match.Level)
+		}
+		match.Inky.Tick(match.Level)
+		match.Inky.Update(match.Level, match.PacMan)
+		if !exited && match.Inky.houseStage == 0 {
+			exited = true
+			if match.Inky.Direction != DirectionRight {
+				t.Fatal("a mode change inside the house should make Inky exit right")
+			}
+		}
+		column, row := match.Inky.OccupiedTile()
+		if match.Inky.houseStage == 0 && !isWalkable(column, row) {
+			t.Fatalf("tick %d: Inky entered wall (%d,%d)", tick, column, row)
+		}
+	}
+	if !exited {
+		t.Fatal("Inky did not leave the house")
+	}
+}

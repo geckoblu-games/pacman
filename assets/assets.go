@@ -57,6 +57,8 @@ type GameImages struct {
 	BlinkyFrames [ghostSpriteCount]*ebiten.Image
 	// PinkyFrames contains two frames for each eye direction.
 	PinkyFrames [ghostSpriteCount]*ebiten.Image
+	// InkyFrames contains two frames for each eye direction.
+	InkyFrames [ghostSpriteCount]*ebiten.Image
 	// FrightenedFrames contains two blue and two flashing white frames.
 	FrightenedFrames [4]*ebiten.Image
 	// GhostEyes contains the four directional returning-eye sprites.
@@ -179,10 +181,11 @@ func LoadGameImages(wallSize image.Point) (GameImages, error) {
 	}
 	var blinkyFrames [ghostSpriteCount]*ebiten.Image
 	var pinkyFrames [ghostSpriteCount]*ebiten.Image
+	var inkyFrames [ghostSpriteCount]*ebiten.Image
 	var frightenedFrames [4]*ebiten.Image
 	var ghostEyes [4]*ebiten.Image
 	for column := 0; column < ghostSpriteCount; column++ {
-		for _, row := range []int{1, 2, 5} {
+		for _, row := range []int{1, 2, 3, 5} {
 			region := image.Rect(column*classicTilesetTileSize, row*classicTilesetTileSize,
 				(column+1)*classicTilesetTileSize, (row+1)*classicTilesetTileSize)
 			frame, err := LoadImageRegion("classic-tileset.png", region)
@@ -195,6 +198,8 @@ func LoadGameImages(wallSize image.Point) (GameImages, error) {
 				blinkyFrames[column] = sprite
 			case row == 2:
 				pinkyFrames[column] = sprite
+			case row == 3:
+				inkyFrames[column] = sprite
 			case column < 4:
 				frightenedFrames[column] = sprite
 			default:
@@ -229,6 +234,7 @@ func LoadGameImages(wallSize image.Point) (GameImages, error) {
 		PacManDeathFrames: deathFrames,
 		BlinkyFrames:      blinkyFrames,
 		PinkyFrames:       pinkyFrames,
+		InkyFrames:        inkyFrames,
 		FrightenedFrames:  frightenedFrames,
 		GhostEyes:         ghostEyes,
 		BonusSymbols:      bonusSymbols,

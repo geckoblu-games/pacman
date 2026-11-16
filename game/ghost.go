@@ -28,6 +28,8 @@ const (
 	GhostBlinky GhostKind = iota
 	// GhostPinky identifies the pink ghost.
 	GhostPinky
+	// GhostInky identifies the cyan ghost.
+	GhostInky
 )
 
 // ghostClock holds the mode schedule and frightened randomness shared by ghosts.
@@ -46,6 +48,8 @@ type GhostState struct {
 	*ghostClock
 	// Kind selects the ghost's individual behavior.
 	Kind GhostKind
+	// blinky supplies the current position used by Inky's chase target.
+	blinky *GhostState
 	// X and Y are the ghost's center in logical pixels.
 	X, Y float64
 	// Direction is the current direction of travel.
@@ -87,6 +91,15 @@ func newPinky(clock *ghostClock, afterDeath bool) GhostState {
 		ghostClock: clock, Kind: GhostPinky,
 		X: float64(ScreenWidth) / 2, Y: float64(17*CellSize + CellSize/2),
 		Direction: DirectionUp, houseStage: stage,
+	}
+}
+
+// newInky creates Inky on the left side of the house with Blinky's shared clock.
+func newInky(blinky *GhostState) GhostState {
+	return GhostState{
+		ghostClock: blinky.ghostClock, blinky: blinky, Kind: GhostInky,
+		X: float64(ScreenWidth)/2 - 2*CellSize, Y: float64(17*CellSize + CellSize/2),
+		Direction: DirectionUp, houseStage: 4,
 	}
 }
 
@@ -222,21 +235,32 @@ func (ghost GhostState) target(level LevelState, player PacManState) (int, int) 
 		return 13, 14
 	}
 	if ghost.Mode == GhostScatter && ghost.elroyStage(level) == 0 {
-		if ghost.Kind == GhostPinky {
+		switch ghost.Kind {
+		case GhostPinky:
 			return 2, 0
+		case GhostInky:
+			return 27, 35
 		}
 		return 25, 0
 	}
 	x, y := player.OccupiedTile()
-	if ghost.Kind == GhostPinky {
+	if ghost.Kind == GhostPinky || ghost.Kind == GhostInky {
 		direction := player.Direction
 		if direction == DirectionNone {
 			direction = player.lastDirection
 		}
+		offset := 4
+		if ghost.Kind == GhostInky {
+			offset = 2
+		}
 		dx, dy := directionDelta(direction)
-		x, y = x+4*dx, y+4*dy
+		x, y = x+offset*dx, y+offset*dy
 		if direction == DirectionUp {
-			x -= 4
+			x -= offset
+		}
+		if ghost.Kind == GhostInky {
+			bx, by := ghost.blinky.OccupiedTile()
+			x, y = 2*x-bx, 2*y-by
 		}
 	}
 	return x, y
@@ -387,13 +411,51 @@ func (ghost *GhostState) moveInHouse(distance float64) {
 			ghost.Direction, ghost.turn, ghost.nextTurn = direction, direction, direction
 			ghost.reversePending, ghost.exitRight = false, false
 		}
+	case 5:
+		ghost.Direction = DirectionRight
+		ghost.X = math.Min(centerX, ghost.X+distance)
+		if ghost.X == centerX {
+			ghost.houseStage = 3
+		}
 	}
 }
 
 // releasePinky starts Pinky's exit only when she is waiting in the house.
 func (match *MatchState) releasePinky() {
 	if match.Pinky.houseStage == 4 {
-		match.Pinky.houseStage = 3
+		match.Pinky.startExit()
+	}
+}
+
+// startExit moves a waiting ghost to the center before leaving the house.
+func (ghost *GhostState) startExit() {
+	ghost.houseStage = 3
+	if ghost.X < float64(ScreenWidth)/2 {
+		ghost.houseStage = 5
+	}
+}
+
+// releasePersonalGhosts applies the currently enabled personal dot limits.
+func (match *MatchState) releasePersonalGhosts() {
+	if match.GlobalGhostCounter {
+		return
+	}
+	match.releasePinky()
+	limit := 0
+	if match.Level.Number == 1 {
+		limit = 30
+	}
+	if match.Inky.houseStage == 4 && match.InkyDots >= limit {
+		match.Inky.startExit()
+	}
+}
+
+// releaseWaitingGhost forces the most-preferred waiting ghost to leave.
+func (match *MatchState) releaseWaitingGhost() {
+	if match.Pinky.houseStage == 4 {
+		match.releasePinky()
+	} else if match.Inky.houseStage == 4 {
+		match.Inky.startExit()
 	}
 }
 
@@ -421,12 +483,11 @@ func (state *GameState) UpdateActors(requested Direction, ghostMovement bool) {
 	if ghostMovement {
 		match.Blinky.Update(match.Level, match.PacMan)
 		match.Pinky.Update(match.Level, match.PacMan)
+		match.Inky.Update(match.Level, match.PacMan)
 	}
-	if !match.GlobalGhostCounter {
-		match.releasePinky()
-	}
+	match.releasePersonalGhosts()
 	playerX, playerY := match.PacMan.OccupiedTile()
-	for _, ghost := range []*GhostState{&match.Blinky, &match.Pinky} {
+	for _, ghost := range []*GhostState{&match.Blinky, &match.Pinky, &match.Inky} {
 		ghostX, ghostY := ghost.OccupiedTile()
 		outside := ghost.houseStage == 0 || (ghost.houseStage == 3 && isWalkable(ghostX, ghostY))
 		if playerX != ghostX || playerY != ghostY || ghost.Mode == GhostEaten || !outside {

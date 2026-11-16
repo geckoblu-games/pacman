@@ -106,8 +106,8 @@ func TestLoadGameImagesRejectsWallSize(t *testing.T) {
 	}
 }
 
-// TestPinkyFrames checks every directional frame comes from Pinky's atlas row.
-func TestPinkyFrames(t *testing.T) {
+// TestGhostColorFrames checks directional frames come from the correct atlas rows.
+func TestGhostColorFrames(t *testing.T) {
 	source, err := LoadImage("classic-tileset.png")
 	if err != nil {
 		t.Fatal(err)
@@ -116,19 +116,31 @@ func TestPinkyFrames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for column, frame := range images.PinkyFrames {
-		if frame == nil || frame.Bounds().Size() != image.Pt(classicTilesetTileSize, classicTilesetTileSize) {
-			t.Fatalf("Pinky frame %d has invalid dimensions", column)
-		}
-		pixels := make([]byte, 4*classicTilesetTileSize*classicTilesetTileSize)
-		frame.ReadPixels(pixels)
-		for y := 0; y < classicTilesetTileSize; y++ {
-			for x := 0; x < classicTilesetTileSize; x++ {
-				want := color.RGBAModel.Convert(source.At(column*classicTilesetTileSize+x, 2*classicTilesetTileSize+y)).(color.RGBA)
-				offset := 4 * (y*classicTilesetTileSize + x)
-				got := color.RGBA{R: pixels[offset], G: pixels[offset+1], B: pixels[offset+2], A: pixels[offset+3]}
-				if got != want {
-					t.Fatalf("Pinky frame %d pixel (%d,%d): got %v, want %v", column, x, y, got, want)
+	for _, ghost := range []struct {
+		// name identifies the ghost being checked.
+		name string
+		// row is the atlas row containing the ghost.
+		row int
+		// frames are the loaded directional sprites.
+		frames [ghostSpriteCount]*ebiten.Image
+	}{
+		{"Pinky", 2, images.PinkyFrames},
+		{"Inky", 3, images.InkyFrames},
+	} {
+		for column, frame := range ghost.frames {
+			if frame == nil || frame.Bounds().Size() != image.Pt(classicTilesetTileSize, classicTilesetTileSize) {
+				t.Fatalf("%s frame %d has invalid dimensions", ghost.name, column)
+			}
+			pixels := make([]byte, 4*classicTilesetTileSize*classicTilesetTileSize)
+			frame.ReadPixels(pixels)
+			for y := 0; y < classicTilesetTileSize; y++ {
+				for x := 0; x < classicTilesetTileSize; x++ {
+					want := color.RGBAModel.Convert(source.At(column*classicTilesetTileSize+x, ghost.row*classicTilesetTileSize+y)).(color.RGBA)
+					offset := 4 * (y*classicTilesetTileSize + x)
+					got := color.RGBA{R: pixels[offset], G: pixels[offset+1], B: pixels[offset+2], A: pixels[offset+3]}
+					if got != want {
+						t.Fatalf("%s frame %d pixel (%d,%d): got %v, want %v", ghost.name, column, x, y, got, want)
+					}
 				}
 			}
 		}
