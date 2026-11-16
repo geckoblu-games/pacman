@@ -306,43 +306,45 @@ Two independent, concurrently-active controls govern when a ghost leaves the hou
 
 Before considering the clone "faithful," verify each of the following observable behaviors, grouped by subsystem. These are the testable, player-visible consequences of the rules above and are the most efficient way to catch subtle logic drift during development.
 
+Checked items are implemented and covered by the headless simulation tests in `game/` (see the implementation reference for the test command); the only open item is the audio jingle.
+
 **Movement & Collision**
-- [ ] Pac-Man can begin a turn before reaching an intersection's center (cornering) and ghosts cannot.
-- [ ] Pac-Man and ghosts cross both tunnel edges continuously in either direction, showing complementary sprite portions at opposite edges without a jump, overlap, or gap; ghosts retain their tunnel speed penalty.
-- [ ] A rare, reproducible "pass-through" is observable under the exact tile-swap conditions, and only there.
-- [ ] Ghosts moving through the tunnel visibly slow down; Pac-Man does not.
-- [ ] Ghosts cannot turn upward in the four designated no-upturn tiles (except while frightened).
+- [x] Pac-Man can begin a turn before reaching an intersection's center (cornering) and ghosts cannot.
+- [x] Pac-Man and ghosts cross both tunnel edges continuously in either direction, showing complementary sprite portions at opposite edges without a jump, overlap, or gap; ghosts retain their tunnel speed penalty.
+- [x] A rare, reproducible "pass-through" is observable under the exact tile-swap conditions, and only there.
+- [x] Ghosts moving through the tunnel visibly slow down; Pac-Man does not.
+- [x] Ghosts cannot turn upward in the four designated no-upturn tiles (except while frightened).
 
 **Ghost AI**
-- [ ] Blinky always beelines for Pac-Man's current tile.
-- [ ] Pinky targets 4 tiles ahead of Pac-Man, with the "up = up+left" bug reproduced, not corrected.
-- [ ] Inky's target visibly depends on Blinky's position (verify by moving Blinky far away vs. near Pac-Man and observing Inky's path change), including the equivalent "up" bug in his offset step.
-- [ ] Clyde switches between direct pursuit and corner-retreat exactly at the 8-tile distance boundary, producing a visible looping pattern near that boundary.
-- [ ] Tie-break order (Up > Left > Down > Right) is observable when two paths are equidistant.
-- [ ] Ghosts never reverse direction except at verified mode-change moments.
+- [x] Blinky always beelines for Pac-Man's current tile.
+- [x] Pinky targets 4 tiles ahead of Pac-Man, with the "up = up+left" bug reproduced, not corrected.
+- [x] Inky's target visibly depends on Blinky's position (verify by moving Blinky far away vs. near Pac-Man and observing Inky's path change), including the equivalent "up" bug in his offset step.
+- [x] Clyde switches between direct pursuit and corner-retreat exactly at the 8-tile distance boundary, producing a visible looping pattern near that boundary.
+- [x] Tie-break order (Up > Left > Down > Right) is observable when two paths are equidistant.
+- [x] Ghosts never reverse direction except at verified mode-change moments.
 
 **Modes & Timing**
-- [ ] Scatter/chase cycle lengths match the level-based table (§4.2), including the near-instant 4th scatter period on level 2+.
-- [ ] Scatter/chase timer visibly pauses during frightened periods and resumes correctly afterward.
-- [ ] Frightened duration and flash count shrink per the per-level table, and fright mode visibly disappears (no blue, no vulnerability) on levels 17/19/20/21+ while level 18 retains a brief fright window (per the table-vs-prose resolution in §5.2).
-- [ ] Cruise Elroy triggers at the correct dot-remaining thresholds, speeds Blinky appropriately, and is suspended after a death until Clyde is seen leaving the house again.
+- [x] Scatter/chase cycle lengths match the level-based table (§4.2), including the near-instant 4th scatter period on level 2+.
+- [x] Scatter/chase timer visibly pauses during frightened periods and resumes correctly afterward.
+- [x] Frightened duration and flash count shrink per the per-level table, and fright mode visibly disappears (no blue, no vulnerability) on levels 17/19/20/21+ while level 18 retains a brief fright window (per the table-vs-prose resolution in §5.2).
+- [x] Cruise Elroy triggers at the correct dot-remaining thresholds, speeds Blinky appropriately, and is suspended after a death until Clyde is seen leaving the house again.
 
 **Level Transitions**
-- [ ] Clearing the final collectible starts a 120-tick (2-second) maze flash that alternates blue and white four times; Pac-Man stops in place and all ghosts disappear immediately.
-- [ ] The next level shows a centered yellow `READY!` for approximately 2 seconds, with Pac-Man and all ghosts visible, stationary, and at their starting positions. The same intro appears at match start and after a life is lost.
+- [x] Clearing the final collectible starts a 120-tick (2-second) maze flash that alternates blue and white four times; Pac-Man stops in place and all ghosts disappear immediately.
+- [x] The next level shows a centered yellow `READY!` for approximately 2 seconds, with Pac-Man and all ghosts visible, stationary, and at their starting positions. The same intro appears at match start and after a life is lost.
 - [ ] A short jingle plays during the new-level intro; controls remain locked and actors remain still until both `READY!` has disappeared and the jingle has ended.
 
 **Ghost House**
-- [ ] At level start, Pinky/Inky/Clyde leave in the documented order and timing for levels 1, 2, and 3+ respectively.
-- [ ] After a death, the global counter governs Pinky's and Inky's releases at 7/17; at 32 the Clyde-presence condition and restoration of personal counters behave as documented.
-- [ ] The anti-stall timer (4s/3s) forces a release if dots go uneaten too long.
-- [ ] Ghosts exit left normally, right if a mode change happened while they waited inside.
+- [x] At level start, Pinky/Inky/Clyde leave in the documented order and timing for levels 1, 2, and 3+ respectively.
+- [x] After a death, the global counter governs Pinky's and Inky's releases at 7/17; at 32 the Clyde-presence condition and restoration of personal counters behave as documented.
+- [x] The anti-stall timer (4s/3s) forces a release if dots go uneaten too long.
+- [x] Ghosts exit left normally, right if a mode change happened while they waited inside.
 
 **Scoring & Progression**
-- [ ] Ghost-eating streak scores 200/400/800/1600, resetting with each new energizer.
-- [ ] Bonus fruit appears at 70 and 170 dots eaten, lasts a randomized 9–10 seconds, and matches the level's symbol/value table.
-- [ ] Fruit/level history strip shows the last 6 rounds + current.
-- [ ] Speed percentages for Pac-Man and ghosts match the per-level bands (80/90/100/90%).
+- [x] Ghost-eating streak scores 200/400/800/1600, resetting with each new energizer.
+- [x] Bonus fruit appears at 70 and 170 dots eaten, lasts a randomized 9–10 seconds, and matches the level's symbol/value table.
+- [x] Fruit/level history strip shows the last 6 rounds + current.
+- [x] Speed percentages for Pac-Man and ghosts match the per-level bands (80/90/100/90%).
 
 ---
 
@@ -395,6 +397,8 @@ Because so much of the ghost behavior described in the dossier is precisely spec
 | 4   | Hard-mode jumper levels              | Documented as a hardware curiosity, not a core rule                      | Treat as optional/stretch feature, data-driven (§5.5)                                                                                                 |
 | 5   | Original PRNG bit-level reproduction | Described conceptually, not fully specified                              | Use a seeded PRNG with equivalent reseed events; exact bit-level parity not required unless frame-perfect "pattern" replay is an explicit goal (§3.4) |
 | 6   | Clyde's 8-tile check granularity     | Not stated whether continuous or per-intersection                        | Evaluate every tile-entry, for responsiveness consistent with the rest of the lookahead model (§4.4)                                                  |
+| 7   | Bonus life at 10,000 points          | Standard arcade default, not covered by this document                    | Undecided; not implemented. Decide whether to award one extra life at 10,000 points and whether a score cap applies                                   |
+| 8   | Attract/title screen                 | Named in the game-flow outline (§9.3) but not specified                  | Undecided; not implemented. Launch enters `READY!` directly and `GAME OVER` waits for `Enter`                                                         |
 
 ---
 

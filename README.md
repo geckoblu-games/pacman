@@ -1,5 +1,10 @@
 # Pacman
-A recreation of the arcade game "Pacman" written in GO
+A recreation of the arcade game "Pacman" written in GO.
+
+Implemented: the full maze with 244 collectibles, Pac-Man movement with cornering,
+the four ghosts with their arcade targeting, scatter/chase schedule, frightened mode
+and ghost-house release rules, Cruise Elroy, bonus fruit, the death and level-clear
+sequences, pause, and a persistent high score. Sound is not implemented yet.
 
 ## 🔧 Powered By
 
@@ -52,13 +57,34 @@ go run .
 ```
 
 The first command downloads dependencies and generates `go.sum`.
-To exit, close the window.
+A match starts automatically with the `READY!` intro. To exit, close the window.
 
-### Blinky
+### Controls
 
-Blinky is the first playable ghost. To keep him stationary for debugging, set
-`GhostMovementEnabled` to `false` in `game/constants.go`. His modes, animation,
-and collisions remain active.
+| Key | Action |
+| --- | --- |
+| Arrow keys or `W` `A` `S` `D` | Steer Pac-Man (held direction is buffered until the turn is possible) |
+| `P` | Pause / resume |
+| `Enter` | Start a new match after `GAME OVER` |
+
+### Debugging
+
+To keep all ghosts stationary, set `GhostMovementEnabled` to `false` in
+`game/constants.go`; their modes, animation, house timers, and collisions remain
+active. `DebugGridEnabled` and `DebugAllowedPathEnabled` in the same file draw the
+logical grid and the walkable cells.
+
+## Testing
+
+The simulation tests run without a display:
+
+```sh
+go test ./highscore
+go test game/state.go game/fruit.go game/pacman.go game/ghost.go game/constants.go game/constsantsmaze.go game/level.go game/state_test.go game/level_test.go game/pacman_test.go game/ghost_test.go
+```
+
+`go test ./...` also exercises the rendering integration and needs a display
+(for example `xvfb-run -a go test ./...` on Linux).
 
 ## Persistent high score
 

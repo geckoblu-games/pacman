@@ -44,9 +44,13 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. Its renderer-in
 |   `-- constsantsmaze.go
 `-- doc/
     |-- PROJECT IMPLEMENTATION REFERENCE.md
+    |-- Pacman_Clone_Design_Dossier.md
+    |-- go-ebiten-implementation-proposal.md
     |-- ReferenceMap.png
     |-- TilesWalls_sketch.pdf
-    `-- The Pac-Man Dossier.html
+    |-- The Pac-Man Dossier.html
+    |-- The Pac-Man Dossier.md
+    `-- tpmd_images/
 ```
 
 ### Root files
@@ -67,7 +71,7 @@ Pacman is a Go desktop application built with Ebitengine v2.8.8. Its renderer-in
 - `state.go` defines the pure Go session and match state and their transitions, using `LevelState` and `FruitState`, plus the tick-driven level-clear and READY! timers, bonus spawning and consumption, and the injectable random generator; `state_test.go` tests them without initializing Ebitengine.
 - `level.go` contains level-specific types, data, and behavior: `LevelState`, `LevelParameters`, `NewLevelState`, bonus-symbol history, collectible consumption, the private level parameter table, `ParametersForLevel`, and the base speed. Its code has no rendering dependencies. `LevelState.ConsumeCollectible` updates presence flags and the remaining count and returns 10 or 50 points, or zero when nothing is consumed. Match phase checks, score updates, and the transition to `PhaseLevelComplete` remain in `GameState`.
 - `level_test.go` verifies collectible initialization and idempotence and compares all level parameter rows with the dossier.
-- `constants.go` defines logical display/grid dimensions, scale, debug switches and `GhostMovementEnabled` (default true).
+- `constants.go` defines logical display/grid dimensions, scale, debug switches (both off by default) and `GhostMovementEnabled` (default true).
 - `constsantsmaze.go` defines `AllowedPath` as a `[GridRows][GridColumns]bool` matrix indexed `[row][column]`, plus the `EnergizerCoords` and `CoinCoords` coordinate arrays.
 
 ### `assets/`
@@ -89,7 +93,7 @@ The persistence module can be used by Android and iOS hosts, but the application
 
 ### `doc/`
 
-This directory contains source/reference material: the reference map image, a wall-tile sketch PDF, and a local copy of The Pac-Man Dossier. They are not read by the runtime; the runtime maze is `assets/walls.png` and the path coordinates are compiled into `game/constsantsmaze.go`.
+This directory contains documentation and reference material. `Pacman_Clone_Design_Dossier.md` is the gameplay requirements baseline with FACT/ASSUMPTION/DECISION labels; `The Pac-Man Dossier.md` (with its `tpmd_images/` and the original HTML) is the local copy of the source article, read by `level_test.go` to validate the parameter table; `go-ebiten-implementation-proposal.md` is a non-binding architecture proposal. The reference map image and the wall-tile sketch PDF were used to derive the maze. None of these files is read by the runtime; the runtime maze is `assets/walls.png` and the path coordinates are compiled into `game/constsantsmaze.go`.
 
 ## Runtime and Rendering Flow
 
@@ -107,7 +111,7 @@ This directory contains source/reference material: the reference map image, a wa
 
 The display is represented as a 28-column by 36-row grid with 16 logical pixels per cell. This gives a fixed internal resolution of 448 x 576 pixels. Grid coordinates are zero-based, with the origin at the top-left. To get a cell's top-left logical pixel position, multiply its column and row by `CellSize`.
 
-`ScreenScale` controls only the initial native window dimensions. It does not alter the internal rendering resolution or the cell-coordinate system. The current scale is 1.0.
+`ScreenScale` controls only the initial native window dimensions. It does not alter the internal rendering resolution or the cell-coordinate system. The current scale is 1.2, giving an initial 538 x 691 window; there is no runtime scale or fullscreen option.
 
 ### Embedded asset loading
 
@@ -117,7 +121,7 @@ The `assets` package uses `embed.FS` with `//go:embed *.png *.ttf`, so runtime a
 
 ### Debug overlays
 
-`DebugAllowedPathEnabled` and `DebugGridEnabled` control independent overlays and are both true in the current configuration.
+`DebugAllowedPathEnabled` and `DebugGridEnabled` control independent overlays and are both false in the current configuration; they are compile-time constants in `game/constants.go`.
 
 - `AllowedPath` is a 36-row by 28-column boolean matrix extracted from the reference map, with `true` for each of 300 traversable cells. It includes tunnel and energizer cells while excluding walls, HUD regions, and the black ghost-house interior. Movement checks use direct `[row][column]` indexing with bounds validation; the matrix is treated as read-only.
 - The allowed-path overlay paints each `true` matrix cell as a 16 x 16 block in opaque RGB (79, 79, 79). It is created lazily on first use and then cached in `GameImages`. Its cached pixels assume `AllowedPath` remains unchanged.
@@ -149,7 +153,7 @@ The game-over result remains available until a new match starts. State methods a
 
 `levelParameters` in `game/level.go` encodes all 21 rows of Table A.1 in source-column order. Go arrays cannot be constants, so this package-private table is treated as read-only. `NewLevelState` selects the appropriate row through `ParametersForLevel` and copies it into `LevelState.Parameters`. Levels 21 and above share the final row while retaining their actual level number; level numbers below 1 are invalid and rejected with a panic. New matches and level advancement load parameters automatically; losing a life preserves them.
 
-`LevelParameters` retains every column: bonus symbol and points; Pac-Man normal and dot-eating speeds; ghost normal and tunnel speeds; both Elroy dot thresholds and speeds; frightened Pac-Man, dot-eating and ghost speeds; frightened duration and flash count. Speed fields are integer percentages, not pixel velocities. Dot-eating percentages retain the source's rounded approximations (71, 79, 83, and 87). `BaseSpeedPixelsPerSecond` stores the source's canonical 100% speed, 75.75757625 pixels/second, measured at the original 8-pixel tile scale; future movement must account for the renderer's 16-pixel cells.
+`LevelParameters` retains every column: bonus symbol and points; Pac-Man normal and dot-eating speeds; ghost normal and tunnel speeds; both Elroy dot thresholds and speeds; frightened Pac-Man, dot-eating and ghost speeds; frightened duration and flash count. Speed fields are integer percentages, not pixel velocities. Dot-eating percentages retain the source's rounded approximations (71, 79, 83, and 87), but `PacManDotsSpeedPercent` and `FrightPacManDotsSpeedPercent` are not used by the simulation: the dot-eating slowdown is modeled exactly as the source describes it, through the one-tick (dot, fruit) and three-tick (energizer) `EatingPauseTicks` stall, so these averaged columns are kept only for table completeness. `BaseSpeedPixelsPerSecond` stores the source's canonical 100% speed, 75.75757625 pixels/second, measured at the original 8-pixel tile scale; movement converts it to the renderer's 16-pixel cells.
 
 Source dashes are encoded as zero for all five frightened fields. This disables vulnerability on levels 17, 19, 20, and 21+, while level 18 retains its one-second window and three flashes. The simulation converts speeds and frightened durations to 60 Hz values.
 
@@ -163,11 +167,22 @@ Pinky starts at the center of the house, Inky two tiles left and Clyde two tiles
 
 `GhostMovementEnabled = false` freezes all ghosts' positions, including returning eyes, but leaves mode and house timers, animation, energizers and collisions active. Pause freezes everything. Tunnel and frightened speeds and Elroy thresholds use the level table. After a death Elroy is suspended until Clyde starts exiting, whether released by a personal counter or the no-dot timer.
 
-Natural ownership boundaries for future work are:
+### Controls
 
-- Expand player controls and render additional actors/pellets in `Draw` with an explicit layer order.
-- Use `AllowedPath` as the authoritative, validated movement grid; the boolean matrix is shared by movement checks and the debug overlay.
-- Extend the existing HUD labels and use the loaded font when additional score, lives, or level text is implemented.
+`ScenePlay.Update` reads the keyboard directly. Arrow keys or WASD set Pac-Man's requested direction while held; `P` toggles pause; `Enter` starts a new match only when no match exists or the current one is over. The application starts a match automatically at launch, so `Enter` is normally needed only after `GAME OVER`. There is no gamepad or touch input.
+
+### Not implemented
+
+The following are known gaps between the current code and the arcade or the design dossier; none is partially present in the code:
+
+- Audio: no sounds, no READY! jingle. The intro ends purely on the `ReadyTicks` timer.
+- Attract/title screen: there is no menu or demo; launch enters READY! directly, and `GAME OVER` waits for `Enter`. `PhaseWaiting` exists only as the zero value before `game.New` starts the first match.
+- Bonus life at 10,000 points and any score cap or overflow behavior.
+- Arcade intermissions (cutscenes), the level-256 overflow, and the hard-difficulty jumper.
+- Full ghost-house traversal: Inky and Clyde revive at the house center instead of returning to their own slots, and the exit-capture wall-traversal bug is not reproduced.
+- Configurable window scale or fullscreen; mobile packaging and lifecycle hosts (see `highscore/` above).
+
+Natural ownership boundaries for this work are: new scenes or phases belong in `state.go` (phase and transitions) and `sceneplay.go` (input and drawing); audio would be a presentation concern driven by phase changes, not a simulation dependency; and new per-level rules belong in the `level.go` parameter table.
 
 ## Build and Verification
 
@@ -178,12 +193,12 @@ go run .
 go build -o pacman .
 ```
 
-The state tests cover new-match initialization, session record retention, life loss and game over, pause toggling and freezing, collectible idempotence, level completion and progression, and rejected operations outside active play. They also compare all 21 parameter rows directly with the local dossier and verify parameter loading through progression, new-match reset, and the 21+ fallback without mutating the shared table. Bonus-strip tests cover current-first ordering, duplicated symbols, the seven-icon limit, insertion and shifting on advancement, preservation after death, and reset on a new match. Bonus-fruit tests use seeded generators to cover the 70/170 triggers, the 540–600 tick range and its randomness, expiry, the half-cell overlap rule, level-dependent scoring, the popup duration, the one-tick pause, and removal on life loss, level clear, and advancement. The dossier is read only by tests, not by the runtime. State tests can run without a display or Ebitengine initialization:
+The state tests cover new-match initialization, session record retention, life loss and game over, pause toggling and freezing, collectible idempotence, level completion and progression, and rejected operations outside active play. They also compare all 21 parameter rows directly with the local dossier and verify parameter loading through progression, new-match reset, and the 21+ fallback without mutating the shared table. Bonus-strip tests cover current-first ordering, duplicated symbols, the seven-icon limit, insertion and shifting on advancement, preservation after death, and reset on a new match. Bonus-fruit tests use seeded generators to cover the 70/170 triggers, the 540–600 tick range and its randomness, expiry, the half-cell overlap rule, level-dependent scoring, the popup duration, the one-tick pause, and removal on life loss, level clear, and advancement. Pac-Man and ghost tests cover the movement, targeting, mode schedule, fright, red-zone, tunnel, pass-through, capture, eyes, Elroy and ghost-house rules listed in the design dossier's §8 checklist. The dossier is read only by tests, not by the runtime. Simulation tests can run without a display or Ebitengine initialization by naming the non-rendering files (`game.go`, `sceneplay.go` and `spritepacman.go` import Ebitengine and are excluded):
 
 ```sh
-go test game/state.go game/fruit.go game/pacman.go game/constants.go game/constsantsmaze.go game/level.go game/state_test.go game/level_test.go
+go test game/state.go game/fruit.go game/pacman.go game/ghost.go game/constants.go game/constsantsmaze.go game/level.go game/state_test.go game/level_test.go game/pacman_test.go game/ghost_test.go
 ```
 
 Persistence unit tests also run without a display: `go test ./highscore`. All filesystem tests use temporary directories, not the user's high-score file.
 
-`go test ./...` also tests bottom-HUD symmetry, spacing, screen bounds, and loading of every bonus sprite, and compiles the graphics integration. It requires Ebitengine's native dependencies and a display on Linux (or a virtual display such as `xvfb-run -a go test ./...`). Actual window rendering and actor gameplay are not covered by these tests.
+`go test ./...` also tests bottom-HUD symmetry, spacing, screen bounds, and loading of every bonus sprite, and compiles the graphics integration. It requires Ebitengine's native dependencies and a display on Linux (or a virtual display such as `xvfb-run -a go test ./...`). Actual window rendering is not covered by these tests. There is no continuous-integration workflow in the repository; tests are run locally.
