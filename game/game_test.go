@@ -58,6 +58,14 @@ func TestHighScoreCheckpoints(t *testing.T) {
 	game.State.AddScore(20)
 	game.State.Match.Lives = 1
 	game.State.LoseLife()
+	for range DeathFreezeTicks + DeathAnimationTicks + DeathEmptyTicks - 1 {
+		if err := game.Update(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if score, err := highscore.New(path).Load(); err != nil || score != 120 {
+		t.Fatalf("death sequence should not persist a game-over checkpoint early: %d, %v", score, err)
+	}
 	if err := game.Update(); err != nil {
 		t.Fatal(err)
 	}
@@ -92,11 +100,38 @@ func TestHighScoreCheckpointFailure(t *testing.T) {
 	game.State.BeginPlaying()
 	game.State.Match.Lives = 1
 	game.State.LoseLife()
-	if err := game.Update(); err != nil {
-		t.Fatal(err)
+	for range DeathFreezeTicks + DeathAnimationTicks + DeathEmptyTicks {
+		if err := game.Update(); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if calls != 2 {
 		t.Fatalf("expected another attempt at the next checkpoint, got %d", calls)
+	}
+}
+
+// TestCaptureResumeRenderingPosition checks the first resumed frame keeps both actors in place.
+func TestCaptureResumeRenderingPosition(t *testing.T) {
+	game, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	game.State.BeginPlaying()
+	match := game.State.Match
+	match.Blinky.Frighten(match.Level)
+	match.PacMan.X, match.PacMan.Y = match.Blinky.X, match.Blinky.Y
+	match.PacMan.EatingPauseTicks = 1
+	game.State.UpdateActors(DirectionNone, false)
+	playerX, playerY := match.PacMan.X, match.PacMan.Y
+	ghostX, ghostY := match.Blinky.X, match.Blinky.Y
+	for range GhostCaptureTicks {
+		if err := game.Update(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if game.State.Phase != PhasePlaying || match.PacMan.X != playerX || match.PacMan.Y != playerY ||
+		match.Blinky.X != ghostX || match.Blinky.Y != ghostY || match.Blinky.Mode != GhostEaten {
+		t.Fatal("the first resumed frame should show Pac-Man and eyes at the capture positions")
 	}
 }
 

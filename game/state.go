@@ -11,6 +11,16 @@ const (
 	LevelClearFlashes = 4
 	// ReadyTicks is the approximate 60 Hz duration of the READY! intro (2 seconds).
 	ReadyTicks = 120
+	// DeathFreezeTicks holds the collision scene for one second.
+	DeathFreezeTicks = 60
+	// DeathAnimationTicks is the two-second implosion and spark sequence.
+	DeathAnimationTicks = 120
+	// DeathEmptyTicks holds the empty maze for one second before life loss.
+	DeathEmptyTicks = 60
+	// DeathFrameTicks is the duration of each of the ten death animation frames.
+	DeathFrameTicks = 12
+	// GhostCaptureTicks is the one-second score display after eating a ghost.
+	GhostCaptureTicks = 60
 )
 
 // Phase identifies the current stage of the match lifecycle.
@@ -25,6 +35,10 @@ const (
 	PhasePlaying
 	// PhaseLevelComplete flashes the cleared maze until Tick advances the level.
 	PhaseLevelComplete
+	// PhaseDying freezes the collision, animates Pac-Man, and holds the empty maze.
+	PhaseDying
+	// PhaseGhostCaptured freezes play while the captured ghost's score is shown.
+	PhaseGhostCaptured
 	// PhaseGameOver marks a match with no remaining lives.
 	PhaseGameOver
 )
@@ -35,7 +49,7 @@ type GameState struct {
 	HighScore int
 	// Phase controls which match operations are currently valid.
 	Phase Phase
-	// PhaseTicks counts 60 Hz ticks elapsed in the current timed phase (ready or level complete).
+	// PhaseTicks counts 60 Hz ticks elapsed in the current timed phase.
 	PhaseTicks int
 	// Paused freezes Tick and gameplay input until TogglePause clears it.
 	Paused bool
@@ -57,12 +71,26 @@ type MatchState struct {
 	PacMan PacManState
 	// Fruit stores the current level's bonus visibility and score popup.
 	Fruit FruitState
+	// Blinky stores the red ghost and the shared mode schedule.
+	Blinky GhostState
+	// GhostStreak counts ghosts captured during the current energizer.
+	GhostStreak int
+	// GhostCapture stores the score popup while a ghost capture is frozen.
+	GhostCapture GhostCaptureState
+}
+
+// GhostCaptureState identifies the displayed score and the ghost's collision position.
+type GhostCaptureState struct {
+	// X and Y are the captured ghost's center in logical pixels.
+	X, Y float64
+	// Points is the score awarded for the capture.
+	Points int
 }
 
 // StartNewMatch resets score, lives, and level while retaining the session record.
 // The new match starts unpaused in the ready intro.
 func (state *GameState) StartNewMatch() {
-	state.Match = &MatchState{Lives: InitialLives, Level: NewLevelState(1), PacMan: NewPacManState()}
+	state.Match = &MatchState{Lives: InitialLives, Level: NewLevelState(1), PacMan: NewPacManState(), Blinky: NewBlinky()}
 	state.Paused = false
 	state.enterPhase(PhaseReady)
 }
@@ -84,14 +112,29 @@ func (state *GameState) enterPhase(phase Phase) {
 	state.PhaseTicks = 0
 }
 
-// Tick advances the timed phases by one 60 Hz tick: the level-clear flash
-// advances the level after LevelClearTicks, the ready intro begins play after ReadyTicks,
-// and active play runs the bonus timers. Other phases and a paused match are unaffected.
+// Tick advances the timed phases or active fruit and ghost timers by one 60 Hz tick.
+// Other phases and a paused match are unaffected.
 func (state *GameState) Tick() {
 	if state.Match == nil || state.Paused {
 		return
 	}
 	switch state.Phase {
+	case PhaseGhostCaptured:
+		state.PhaseTicks++
+		if state.PhaseTicks >= GhostCaptureTicks {
+			state.Match.Blinky.Mode = GhostEaten
+			state.Match.Blinky.reversePending = false
+			state.Match.GhostCapture = GhostCaptureState{}
+			state.enterPhase(PhasePlaying)
+		}
+	case PhaseDying:
+		state.PhaseTicks++
+		if state.PhaseTicks == DeathFreezeTicks {
+			state.Match.Fruit = FruitState{}
+		}
+		if state.PhaseTicks >= DeathFreezeTicks+DeathAnimationTicks+DeathEmptyTicks {
+			state.finishDeath()
+		}
 	case PhaseLevelComplete:
 		state.PhaseTicks++
 		if state.PhaseTicks >= LevelClearTicks {
@@ -104,7 +147,37 @@ func (state *GameState) Tick() {
 		}
 	case PhasePlaying:
 		state.Match.Fruit.Tick()
+		frightened := state.Match.Blinky.frightTicks > 0
+		state.Match.Blinky.Tick(state.Match.Level)
+		if frightened && state.Match.Blinky.frightTicks == 0 {
+			state.Match.GhostStreak = 0
+		}
 	}
+}
+
+// DeathFrame returns the zero-based animation frame, or -1 outside the animation.
+func (state *GameState) DeathFrame() int {
+	if state.Phase != PhaseDying || state.PhaseTicks < DeathFreezeTicks ||
+		state.PhaseTicks >= DeathFreezeTicks+DeathAnimationTicks {
+		return -1
+	}
+	return (state.PhaseTicks - DeathFreezeTicks) / DeathFrameTicks
+}
+
+// PacManVisible reports whether Pac-Man is visible in the current phase.
+func (state *GameState) PacManVisible() bool {
+	if state.Match == nil || state.Phase == PhaseGameOver || state.Phase == PhaseGhostCaptured {
+		return false
+	}
+	return state.Phase != PhaseDying || state.PhaseTicks < DeathFreezeTicks+DeathAnimationTicks
+}
+
+// GhostsVisible reports whether ghosts are visible in the current phase.
+func (state *GameState) GhostsVisible() bool {
+	if state.Match == nil || state.Phase == PhaseGameOver || state.Phase == PhaseLevelComplete {
+		return false
+	}
+	return state.Phase != PhaseDying || state.PhaseTicks < DeathFreezeTicks
 }
 
 // MazeFlashWhite reports whether the level-clear flash currently shows the white maze.
@@ -154,6 +227,8 @@ func (state *GameState) ConsumeCollectible(column, row int) bool {
 		state.Match.PacMan.EatingPauseTicks = pacManCoinPauseTicks
 	} else if points == 50 {
 		state.Match.PacMan.EatingPauseTicks = pacManEnergizerPauseTicks
+		state.Match.GhostStreak = 0
+		state.Match.Blinky.Frighten(state.Match.Level)
 	}
 	state.AddScore(points)
 	eaten := len(CoinCoords) + len(EnergizerCoords) - state.Match.Level.Remaining
@@ -205,24 +280,35 @@ func (state *GameState) AdvanceLevel() bool {
 	}
 	state.Match.Level = NewLevelState(state.Match.Level.Number + 1)
 	state.Match.PacMan = NewPacManState()
+	state.Match.Blinky = NewBlinky()
+	state.Match.GhostStreak = 0
+	state.Match.GhostCapture = GhostCaptureState{}
 	state.Match.Fruit = FruitState{}
 	state.enterPhase(PhaseReady)
 	return true
 }
 
-// LoseLife preserves the level, removes any bonus without rescheduling it, and enters
-// the ready intro or game over during active play.
+// LoseLife begins the timed death sequence during active play without changing the level.
 func (state *GameState) LoseLife() bool {
 	if state.Match == nil || state.Phase != PhasePlaying {
 		return false
 	}
+	state.enterPhase(PhaseDying)
+	return true
+}
+
+// finishDeath deducts one life and resets the actors before READY or game over.
+func (state *GameState) finishDeath() {
 	state.Match.Lives--
 	state.Match.PacMan = NewPacManState()
+	state.Match.Blinky = NewBlinky()
+	state.Match.Blinky.ElroySuspended = true
+	state.Match.GhostStreak = 0
+	state.Match.GhostCapture = GhostCaptureState{}
 	state.Match.Fruit = FruitState{}
 	if state.Match.Lives == 0 {
 		state.enterPhase(PhaseGameOver)
 	} else {
 		state.enterPhase(PhaseReady)
 	}
-	return true
 }

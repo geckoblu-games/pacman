@@ -54,6 +54,12 @@ go run .
 The first command downloads dependencies and generates `go.sum`.
 To exit, close the window.
 
+### Blinky
+
+Blinky is the first playable ghost. To keep him stationary for debugging, set
+`GhostMovementEnabled` to `false` in `game/constants.go`. His modes, animation,
+and collisions remain active.
+
 ## Persistent high score
 
 The high score is restored on startup and saved at level completion, game over,

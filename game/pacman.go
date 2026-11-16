@@ -93,8 +93,7 @@ func (player *PacManState) Update(requested Direction, level LevelState) {
 	if requested > DirectionNone && requested <= DirectionRight {
 		player.RequestedDirection = requested
 	}
-	speed := BaseSpeedPixelsPerSecond * float64(CellSize) / 8 *
-		float64(level.Parameters.PacManSpeedPercent) / 100 / simulationTicksPerSecond
+	speed := actorSpeed(level.Parameters.PacManSpeedPercent)
 	previousX, previousY := player.X, player.Y
 	player.advance(speed)
 	if player.X == previousX && player.Y == previousY {
@@ -103,12 +102,19 @@ func (player *PacManState) Update(requested Direction, level LevelState) {
 		player.animationFrame = pacManHalfMouthFrame(player.lastDirection)
 		return
 	}
+
 	player.animationTicks++
 	if player.animationTicks == pacManAnimationTicksPerFrame {
 		player.animationTicks = 0
 		player.animationPhase = (player.animationPhase + 1) % 5
 	}
 	player.animationFrame = pacManFrameForPhase(player.lastDirection, player.animationPhase)
+}
+
+// actorSpeed converts a table percentage to logical pixels per simulation tick.
+func actorSpeed(percent int) float64 {
+	return BaseSpeedPixelsPerSecond * float64(CellSize) / 8 *
+		float64(percent) / 100 / simulationTicksPerSecond
 }
 
 // pacManFrameForPhase maps the five mouth-cycle phases to the oriented atlas cells.

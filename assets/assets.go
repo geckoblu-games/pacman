@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -27,6 +28,10 @@ const (
 	lifeSourceY = 0
 	// pacManSpriteCount is the number of Pac-Man frames in the atlas's first row.
 	pacManSpriteCount = 9
+	// ghostSpriteCount counts directional ghost animation cells.
+	ghostSpriteCount = 8
+	// deathSpriteCount counts the implosion frames and final spark.
+	deathSpriteCount = 10
 	// bonusSourceY is the zero-based atlas row containing all eight bonus symbols.
 	bonusSourceY = 6
 	// coinSize is the generated square coin's side length in logical pixels.
@@ -46,6 +51,14 @@ type GameImages struct {
 	Life *ebiten.Image
 	// PacManFrames contains eight directional mouth frames and one closed-mouth frame.
 	PacManFrames [pacManSpriteCount]*ebiten.Image
+	// PacManDeathFrames contains the generated implosion and spark sprites.
+	PacManDeathFrames [deathSpriteCount]*ebiten.Image
+	// BlinkyFrames contains two frames for each eye direction.
+	BlinkyFrames [ghostSpriteCount]*ebiten.Image
+	// FrightenedFrames contains two blue and two flashing white frames.
+	FrightenedFrames [4]*ebiten.Image
+	// GhostEyes contains the four directional returning-eye sprites.
+	GhostEyes [4]*ebiten.Image
 	// BonusSymbols maps dossier symbol names to their atlas sprites.
 	BonusSymbols map[string]*ebiten.Image
 	// Coin is the generated white sprite for ordinary dots.
@@ -158,6 +171,32 @@ func LoadGameImages(wallSize image.Point) (GameImages, error) {
 		}
 		pacManFrames[column] = ebiten.NewImageFromImage(frame)
 	}
+	var deathFrames [deathSpriteCount]*ebiten.Image
+	for index := range deathFrames {
+		deathFrames[index] = ebiten.NewImageFromImage(newDeathFrame(index))
+	}
+	var blinkyFrames [ghostSpriteCount]*ebiten.Image
+	var frightenedFrames [4]*ebiten.Image
+	var ghostEyes [4]*ebiten.Image
+	for column := 0; column < ghostSpriteCount; column++ {
+		for _, row := range []int{1, 5} {
+			region := image.Rect(column*classicTilesetTileSize, row*classicTilesetTileSize,
+				(column+1)*classicTilesetTileSize, (row+1)*classicTilesetTileSize)
+			frame, err := LoadImageRegion("classic-tileset.png", region)
+			if err != nil {
+				return GameImages{}, fmt.Errorf("load ghost frame at %d,%d: %w", column, row, err)
+			}
+			sprite := ebiten.NewImageFromImage(frame)
+			switch {
+			case row == 1:
+				blinkyFrames[column] = sprite
+			case column < 4:
+				frightenedFrames[column] = sprite
+			default:
+				ghostEyes[column-4] = sprite
+			}
+		}
+	}
 	bonusSymbols := make(map[string]*ebiten.Image, 8)
 	for column, symbol := range []string{"Cherries", "Strawberry", "Peach", "Apple", "Grapes", "Galaxian", "Bell", "Key"} {
 		region := image.Rect(
@@ -177,14 +216,40 @@ func LoadGameImages(wallSize image.Point) (GameImages, error) {
 	wallsBlue, wallsWhite := newWallImages(walls)
 
 	return GameImages{
-		Walls:        wallsBlue,
-		WallsWhite:   wallsWhite,
-		Energizer:    ebiten.NewImageFromImage(energizer),
-		Life:         ebiten.NewImageFromImage(life),
-		PacManFrames: pacManFrames,
-		BonusSymbols: bonusSymbols,
-		Coin:         coin,
+		Walls:             wallsBlue,
+		WallsWhite:        wallsWhite,
+		Energizer:         ebiten.NewImageFromImage(energizer),
+		Life:              ebiten.NewImageFromImage(life),
+		PacManFrames:      pacManFrames,
+		PacManDeathFrames: deathFrames,
+		BlinkyFrames:      blinkyFrames,
+		FrightenedFrames:  frightenedFrames,
+		GhostEyes:         ghostEyes,
+		BonusSymbols:      bonusSymbols,
+		Coin:              coin,
 	}, nil
+}
+
+// newDeathFrame generates a yellow upward-opening implosion frame or final spark.
+func newDeathFrame(index int) *image.RGBA {
+	frame := image.NewRGBA(image.Rect(0, 0, classicTilesetTileSize, classicTilesetTileSize))
+	center := float64(classicTilesetTileSize-1) / 2
+	yellow := color.RGBA{R: 255, G: 255, A: 255}
+	for y := 0; y < classicTilesetTileSize; y++ {
+		for x := 0; x < classicTilesetTileSize; x++ {
+			dx, dy := float64(x)-center, float64(y)-center
+			distance := math.Hypot(dx, dy)
+			if index == deathSpriteCount-1 {
+				ray := math.Abs(dx) <= 0.5 || math.Abs(dy) <= 0.5 || math.Abs(math.Abs(dx)-math.Abs(dy)) <= 0.5
+				if ray && distance >= 4 && distance <= 12 {
+					frame.SetRGBA(x, y, yellow)
+				}
+			} else if distance <= 12 && math.Abs(math.Atan2(dx, -dy)) >= float64(index+1)*math.Pi/10 {
+				frame.SetRGBA(x, y, yellow)
+			}
+		}
+	}
+	return frame
 }
 
 // LoadWindowIcons supplies all available icon sizes for the window manager to choose from.

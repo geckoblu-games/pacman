@@ -111,6 +111,97 @@ func TestStartNewMatch(t *testing.T) {
 	}
 }
 
+// finishDeath advances an unpaused death sequence to READY or game over.
+func finishDeath(t *testing.T, state *GameState) {
+	t.Helper()
+	if state.Phase != PhaseDying {
+		t.Fatal("expected death sequence")
+	}
+	for range DeathFreezeTicks + DeathAnimationTicks + DeathEmptyTicks {
+		if state.Phase != PhaseDying {
+			return
+		}
+		state.Tick()
+	}
+	if state.Phase == PhaseDying {
+		t.Fatal("death sequence did not finish")
+	}
+}
+
+// TestDeathSequence checks frozen collision, animation, empty maze, pause, and respawn.
+func TestDeathSequence(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	state.Match.Fruit = FruitState{Visible: true, Ticks: 300}
+	state.Match.PacMan.X, state.Match.PacMan.Y = state.Match.Blinky.X, state.Match.Blinky.Y
+	state.Match.PacMan.EatingPauseTicks = 1
+	state.UpdateActors(DirectionNone, false)
+	if state.Phase != PhaseDying || state.PhaseTicks != 0 || state.Match.Lives != InitialLives {
+		t.Fatal("collision should start death without deducting a life")
+	}
+	player, ghost, fruit := state.Match.PacMan, state.Match.Blinky, state.Match.Fruit
+	state.TogglePause()
+	for range 10 {
+		state.Tick()
+		state.UpdateActors(DirectionRight, true)
+	}
+	if state.PhaseTicks != 0 || state.Match.PacMan != player || state.Match.Blinky != ghost || state.Match.Fruit != fruit {
+		t.Fatal("pause should freeze the collision scene and death timer")
+	}
+	state.TogglePause()
+	for tick := 0; tick < DeathFreezeTicks; tick++ {
+		if !state.PacManVisible() || !state.GhostsVisible() || state.DeathFrame() != -1 ||
+			state.Match.PacMan != player || state.Match.Blinky != ghost || state.Match.Fruit != fruit {
+			t.Fatalf("collision scene changed during freeze at tick %d", tick)
+		}
+		state.UpdateActors(DirectionRight, true)
+		state.Tick()
+	}
+	if !state.PacManVisible() || state.GhostsVisible() || state.Match.Fruit != (FruitState{}) || state.DeathFrame() != 0 {
+		t.Fatal("animation should begin with ghost and fruit hidden")
+	}
+	for tick := 0; tick < DeathAnimationTicks; tick++ {
+		if state.DeathFrame() != tick/DeathFrameTicks || !state.PacManVisible() || state.GhostsVisible() {
+			t.Fatalf("unexpected death animation at tick %d", tick)
+		}
+		state.Tick()
+	}
+	if state.PacManVisible() || state.GhostsVisible() || state.Match.Lives != InitialLives {
+		t.Fatal("maze should be empty before a life is deducted")
+	}
+	for range DeathEmptyTicks - 1 {
+		state.Tick()
+	}
+	if state.Phase != PhaseDying || state.Match.Lives != InitialLives {
+		t.Fatal("empty maze ended early")
+	}
+	state.Tick()
+	if state.Phase != PhaseReady || state.Match.Lives != InitialLives-1 ||
+		state.Match.PacMan != NewPacManState() || !state.Match.Blinky.ElroySuspended {
+		t.Fatal("death should deduct one life and reset actors into READY")
+	}
+}
+
+// TestDeathGameOver checks the final life is deducted only after the empty maze.
+func TestDeathGameOver(t *testing.T) {
+	state := GameState{}
+	state.StartNewMatch()
+	state.BeginPlaying()
+	state.Match.Lives = 1
+	state.LoseLife()
+	for range DeathFreezeTicks + DeathAnimationTicks + DeathEmptyTicks - 1 {
+		state.Tick()
+	}
+	if state.Phase != PhaseDying || state.Match.Lives != 1 {
+		t.Fatal("final life should remain until the death sequence ends")
+	}
+	state.Tick()
+	if state.Phase != PhaseGameOver || state.Match.Lives != 0 || state.PacManVisible() || state.GhostsVisible() {
+		t.Fatal("final death should enter game over with no actors")
+	}
+}
+
 // TestLoseLifePreservesLevel checks collectible preservation, respawn, and game over.
 func TestLoseLifePreservesLevel(t *testing.T) {
 	state := GameState{}
@@ -122,7 +213,11 @@ func TestLoseLifePreservesLevel(t *testing.T) {
 	}
 	level := state.Match.Level
 	for lives := 2; lives >= 0; lives-- {
-		if !state.LoseLife() || state.Match.Lives != lives {
+		if !state.LoseLife() {
+			t.Fatal("expected death to start")
+		}
+		finishDeath(t, &state)
+		if state.Match.Lives != lives {
 			t.Fatalf("expected %d lives", lives)
 		}
 		if state.Match.Level != level || state.Match.Score != 10 {
@@ -149,6 +244,7 @@ func TestCompleteAndAdvanceLevel(t *testing.T) {
 	state.StartNewMatch()
 	state.BeginPlaying()
 	state.LoseLife()
+	finishDeath(t, &state)
 	state.BeginPlaying()
 	if state.AdvanceLevel() {
 		t.Fatal("cannot advance an incomplete level")
@@ -340,6 +436,7 @@ func TestFruitClearedOnLifeLossAndLevelChange(t *testing.T) {
 	state.BeginPlaying()
 	eatCoins(t, &state, FruitFirstDotsEaten)
 	state.LoseLife()
+	finishDeath(t, &state)
 	if state.Match.Fruit != (FruitState{}) {
 		t.Fatal("losing a life should remove the bonus")
 	}
@@ -448,6 +545,7 @@ func TestReadyIntroTiming(t *testing.T) {
 	state.StartNewMatch()
 	expectIntro(&state, "new match")
 	state.LoseLife()
+	finishDeath(t, &state)
 	expectIntro(&state, "life lost")
 	clearLevel(t, &state)
 	for tick := 0; tick < LevelClearTicks; tick++ {
@@ -461,8 +559,10 @@ func TestReadyIntroTiming(t *testing.T) {
 		t.Fatal("ticking during play should not change phase or counter")
 	}
 	state.LoseLife()
+	finishDeath(t, &state)
 	state.BeginPlaying()
 	state.LoseLife()
+	finishDeath(t, &state)
 	if state.Phase != PhaseGameOver {
 		t.Fatal("expected game over")
 	}
@@ -519,6 +619,7 @@ func TestTogglePause(t *testing.T) {
 	state.BeginPlaying()
 	for state.Phase != PhaseGameOver {
 		state.LoseLife()
+		finishDeath(t, &state)
 		state.BeginPlaying()
 	}
 	if state.TogglePause() || state.Paused {

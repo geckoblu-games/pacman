@@ -35,7 +35,10 @@ var readyColor = color.RGBA{R: 255, G: 255, B: 0, A: 255}
 // fruitScoreColor is the arcade pink used for the bonus score popup.
 var fruitScoreColor = color.RGBA{R: 255, G: 184, B: 255, A: 255}
 
-// ScenePlay handles match input and renders the maze, collectibles, and HUD.
+// ghostScoreColor is the light blue used for captured-ghost scores.
+var ghostScoreColor = color.RGBA{G: 255, B: 255, A: 255}
+
+// ScenePlay handles match input and renders the maze, actors, collectibles, and HUD.
 type ScenePlay struct {
 	// State references the session and match owned by Game.
 	State *GameState
@@ -43,7 +46,7 @@ type ScenePlay struct {
 	images assets.GameImages
 	// highScoreFace is the reusable font face for HUD labels and scores.
 	highScoreFace *text.GoTextFace
-	// pacMan is the player's idle sprite drawn over the maze collectibles.
+	// pacMan draws the player's normal and death sprites.
 	pacMan *pacManSprite
 }
 
@@ -61,13 +64,11 @@ func newScenePlay(state *GameState) (*ScenePlay, error) {
 		State:         state,
 		images:        images,
 		highScoreFace: highScoreFace,
-		pacMan:        newPacManSprite(images.PacManFrames),
+		pacMan:        newPacManSprite(images.PacManFrames, images.PacManDeathFrames),
 	}, nil
 }
 
-// Update starts a new match on Enter after game over, toggles the pause on P, and
-// while unpaused advances the timed level-clear and ready phases and moves Pac-Man
-// only during active play.
+// Update handles match input, advances timers, and updates actors during active play.
 func (scene *ScenePlay) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && (scene.State.Match == nil || scene.State.Phase == PhaseGameOver) {
 		scene.State.StartNewMatch()
@@ -78,25 +79,12 @@ func (scene *ScenePlay) Update() error {
 	if scene.State.Paused {
 		return nil
 	}
+	previousPhase := scene.State.Phase
 	scene.State.Tick()
-	if scene.State.Phase == PhasePlaying && scene.State.Match != nil {
-		scene.updatePacMan(scene.pacManDirection())
+	if scene.State.Phase == PhasePlaying && previousPhase != PhaseGhostCaptured && scene.State.Match != nil {
+		scene.State.UpdateActors(scene.pacManDirection(), GhostMovementEnabled)
 	}
 	return nil
-}
-
-// updatePacMan advances the player, consumes the occupied tile and any overlapped
-// bonus, and honors eating pauses.
-func (scene *ScenePlay) updatePacMan(requested Direction) {
-	player := &scene.State.Match.PacMan
-	if player.EatingPauseTicks > 0 {
-		player.EatingPauseTicks--
-		return
-	}
-	player.Update(requested, scene.State.Match.Level)
-	column, row := player.OccupiedTile()
-	scene.State.ConsumeCollectible(column, row)
-	scene.State.ConsumeFruit()
 }
 
 // pacManDirection maps held arrow or WASD keys to one buffered cardinal direction.
@@ -116,7 +104,7 @@ func (scene *ScenePlay) pacManDirection() Direction {
 }
 
 // Draw composes debug backgrounds, walls, collectibles, the bonus or its score popup,
-// Pac-Man, the grid, the HUD, and the READY! intro or PAUSED message. The maze uses
+// Pac-Man, Blinky, the grid, the HUD, and the READY! intro or PAUSED message. The maze uses
 // the white walls during white flash segments.
 func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	if DebugAllowedPathEnabled {
@@ -131,8 +119,14 @@ func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	scene.drawEnergizers(screen)
 	scene.drawFruit(screen)
 	if scene.State.Match != nil {
-		scene.pacMan.Draw(screen, scene.State.Match.PacMan)
+		if scene.State.PacManVisible() {
+			scene.pacMan.Draw(screen, scene.State.Match.PacMan, scene.State.DeathFrame())
+		}
+		if scene.State.GhostsVisible() && scene.State.Phase != PhaseGhostCaptured {
+			scene.drawBlinky(screen, scene.State.Match.Blinky, scene.State.Match.Level)
+		}
 	}
+	scene.drawGhostCaptureScore(screen)
 	if DebugGridEnabled {
 		if scene.images.DebugGrid == nil {
 			scene.images.DebugGrid = newDebugGrid()
@@ -150,25 +144,75 @@ func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	scene.drawReady(screen)
 }
 
-// drawReady centers a yellow message on readyRow: PAUSED while the match is paused,
-// otherwise READY! during the ready intro.
+// drawGhostCaptureScore draws the captured ghost's score at its collision position.
+func (scene *ScenePlay) drawGhostCaptureScore(screen *ebiten.Image) {
+	if scene.State.Match == nil || scene.State.Phase != PhaseGhostCaptured {
+		return
+	}
+	capture := scene.State.Match.GhostCapture
+	message := strconv.Itoa(capture.Points)
+	positions, count := pacManDrawPositions(capture.X, len(message)*highScoreFontSize)
+	for _, x := range positions[:count] {
+		op := &text.DrawOptions{}
+		op.PrimaryAlign = text.AlignCenter
+		op.GeoM.Translate(x, capture.Y-float64(highScoreFontSize)/2)
+		op.ColorScale.ScaleWithColor(ghostScoreColor)
+		text.Draw(screen, message, scene.highScoreFace, op)
+	}
+}
+
+// drawBlinky draws the current ghost frame, including a wrapped tunnel copy.
+func (scene *ScenePlay) drawBlinky(screen *ebiten.Image, ghost GhostState, level LevelState) {
+	direction := 3
+	switch ghost.Direction {
+	case DirectionUp:
+		direction = 0
+	case DirectionDown:
+		direction = 1
+	case DirectionLeft:
+		direction = 2
+	}
+	frame := scene.images.BlinkyFrames[direction*2+(ghost.animationTicks/6)%2]
+	if ghost.Mode == GhostEaten {
+		frame = scene.images.GhostEyes[direction]
+	} else if ghost.Mode == GhostFrightened {
+		index := (ghost.animationTicks / 6) % 2
+		if ghost.frightTicks <= level.Parameters.FrightFlashes*30 && (ghost.frightTicks/15)%2 == 0 {
+			index += 2
+		}
+		frame = scene.images.FrightenedFrames[index]
+	}
+	size := frame.Bounds().Size()
+	positions, count := pacManDrawPositions(ghost.X, size.X)
+	for _, x := range positions[:count] {
+		op := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
+		op.GeoM.Translate(x-float64(size.X)/2, ghost.Y-float64(size.Y)/2)
+		screen.DrawImage(frame, op)
+	}
+}
+
+// drawReady centers PAUSED, READY!, or the red GAME OVER message on readyRow.
 func (scene *ScenePlay) drawReady(screen *ebiten.Image) {
 	if scene.State.Match == nil {
 		return
 	}
 	message := ""
+	messageColor := readyColor
 	switch {
 	case scene.State.Paused:
 		message = "PAUSED"
 	case scene.State.Phase == PhaseReady:
 		message = "READY!"
+	case scene.State.Phase == PhaseGameOver:
+		message = "GAME OVER"
+		messageColor = color.RGBA{R: 255, A: 255}
 	default:
 		return
 	}
 	op := &text.DrawOptions{}
 	op.PrimaryAlign = text.AlignCenter
 	op.GeoM.Translate(float64(ScreenWidth)/2, float64(readyRow*CellSize+(CellSize-highScoreFontSize)/2))
-	op.ColorScale.ScaleWithColor(readyColor)
+	op.ColorScale.ScaleWithColor(messageColor)
 	text.Draw(screen, message, scene.highScoreFace, op)
 }
 

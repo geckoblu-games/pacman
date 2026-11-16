@@ -24,3 +24,6 @@ const (
 	// DebugAllowedPathEnabled toggles the reference map's gray path backgrounds.
 	DebugAllowedPathEnabled = false
 )
+
+// GhostMovementEnabled controls ghost movement without pausing their other behavior.
+var GhostMovementEnabled = true

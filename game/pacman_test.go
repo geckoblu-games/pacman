@@ -247,13 +247,14 @@ func TestPacManResetsAfterLifeLoss(t *testing.T) {
 	if !state.LoseLife() {
 		t.Fatal("expected to lose a life")
 	}
+	finishDeath(t, &state)
 	if got, want := state.Match.PacMan, NewPacManState(); got != want {
 		t.Fatalf("life loss should reset Pac-Man: got %+v, want %+v", got, want)
 	}
 }
 
-// TestScenePlayConsumesCoinAndPausesMovement checks coin scoring, removal, and its one-tick pause.
-func TestScenePlayConsumesCoinAndPausesMovement(t *testing.T) {
+// TestUpdateActorsConsumesCoinAndPausesMovement checks coin scoring and its one-tick pause.
+func TestUpdateActorsConsumesCoinAndPausesMovement(t *testing.T) {
 	state := GameState{}
 	state.StartNewMatch()
 	state.BeginPlaying()
@@ -262,9 +263,7 @@ func TestScenePlayConsumesCoinAndPausesMovement(t *testing.T) {
 	state.Match.PacMan.Y = float64(row*CellSize + CellSize/2)
 	state.Match.PacMan.Direction = DirectionRight
 	state.Match.PacMan.lastDirection = DirectionRight
-	scene := ScenePlay{State: &state}
-
-	scene.updatePacMan(DirectionNone)
+	state.UpdateActors(DirectionNone, false)
 	player := &state.Match.PacMan
 	if state.Match.Level.Coins[0] || state.Match.Score != 10 || state.HighScore != 10 {
 		t.Fatal("entering a coin tile should consume it and award ten points")
@@ -274,18 +273,18 @@ func TestScenePlayConsumesCoinAndPausesMovement(t *testing.T) {
 	}
 	positionAfterEating := player.X
 
-	scene.updatePacMan(DirectionNone)
+	state.UpdateActors(DirectionNone, false)
 	if player.X != positionAfterEating || player.EatingPauseTicks != 0 {
 		t.Fatal("Pac-Man should remain stationary during the eating-pause tick")
 	}
-	scene.updatePacMan(DirectionNone)
+	state.UpdateActors(DirectionNone, false)
 	if player.X <= positionAfterEating || state.Match.Score != 10 {
 		t.Fatal("Pac-Man should resume movement without consuming the same coin twice")
 	}
 }
 
-// TestScenePlayConsumesEnergizerAndPausesMovement checks the three-tick energizer pause.
-func TestScenePlayConsumesEnergizerAndPausesMovement(t *testing.T) {
+// TestUpdateActorsConsumesEnergizerAndPausesMovement checks the three-tick energizer pause.
+func TestUpdateActorsConsumesEnergizerAndPausesMovement(t *testing.T) {
 	state := GameState{}
 	state.StartNewMatch()
 	state.BeginPlaying()
@@ -293,15 +292,13 @@ func TestScenePlayConsumesEnergizerAndPausesMovement(t *testing.T) {
 	state.Match.PacMan.X = float64(column*CellSize + CellSize/2)
 	state.Match.PacMan.Y = float64(row*CellSize + CellSize/2)
 	state.Match.PacMan.Direction = DirectionNone
-	scene := ScenePlay{State: &state}
-
-	scene.updatePacMan(DirectionNone)
+	state.UpdateActors(DirectionNone, false)
 	if state.Match.Level.Energizers[0] || state.Match.Score != 50 ||
 		state.Match.PacMan.EatingPauseTicks != pacManEnergizerPauseTicks {
 		t.Fatal("entering an energizer tile should award fifty points and pause for three ticks")
 	}
 	for range pacManEnergizerPauseTicks {
-		scene.updatePacMan(DirectionNone)
+		state.UpdateActors(DirectionNone, false)
 	}
 	if state.Match.PacMan.EatingPauseTicks != 0 || state.Match.Score != 50 {
 		t.Fatal("energizer pause should expire without consuming the energizer twice")

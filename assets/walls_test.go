@@ -103,5 +103,30 @@ func TestLoadGameImagesRejectsWallSize(t *testing.T) {
 		if _, err := LoadGameImages(size); err == nil {
 			t.Errorf("expected a wall-size error for %v", size)
 		}
+
+	}
+}
+
+// TestDeathFrames checks the opening implosion and the distinct final spark.
+func TestDeathFrames(t *testing.T) {
+	previous := classicTilesetTileSize * classicTilesetTileSize
+	for index := 0; index < deathSpriteCount-1; index++ {
+		frame := newDeathFrame(index)
+		colored := 0
+		for y := 0; y < classicTilesetTileSize; y++ {
+			for x := 0; x < classicTilesetTileSize; x++ {
+				if frame.RGBAAt(x, y).A != 0 {
+					colored++
+				}
+			}
+		}
+		if colored == 0 || colored >= previous {
+			t.Fatalf("death frame %d should shrink visibly: %d pixels after %d", index, colored, previous)
+		}
+		previous = colored
+	}
+	spark := newDeathFrame(deathSpriteCount - 1)
+	if spark.RGBAAt(13, 13).A != 0 || spark.RGBAAt(13, 3).A == 0 || spark.RGBAAt(5, 5).A == 0 {
+		t.Fatal("final frame should be a hollow radial spark")
 	}
 }

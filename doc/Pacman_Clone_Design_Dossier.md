@@ -33,9 +33,14 @@ Three sources of points, matching the dossier:
 3. Ghosts eaten while frightened — 200 / 400 / 800 / 1,600 pts, doubling per ghost eaten from the *same* energizer activation (resets to 200 on the next energizer). **[FACT]**
 4. Bonus fruit — 100 to 5,000 pts depending on level (see §5.3). **[FACT]**
 
+- **[DECISION]** Reset the ghost score sequence when frightened time expires or another energizer is eaten. The 12,000 points for eating all four ghosts with each of the four energizers are the sum of those sixteen awards, not an additional secret bonus, in accordance with the source dossier.
+- **[DECISION]** Capturing a frightened ghost freezes gameplay for 60 ticks. Pac-Man and the captured ghost are hidden, and the awarded points appear at the ghost's collision position; other ghosts remain visible and stationary. Frightened, mode, fruit, and actor timers do not advance. On resumption Pac-Man and the returning eyes appear at their collision positions. The capture is silent until audio assets are available.
+
 ### 1.4 Lose Condition (Collision)
 - **[FACT]** Collision is defined purely by **tile occupancy**: whenever Pac-Man and a ghost share the same tile (regardless of who moved into whose tile), a life is lost — *except* for the rare "pass-through" edge case (§7.3), which the dossier documents as an authentic artifact of the original's collision detection, not a bug to "fix" for faithfulness purposes.
 - **[AMBIGUITY]** The dossier does not state whether a frightened or already-reversing ghost that shares a tile with Pac-Man as it is being eaten counts differently. **[ASSUMPTION]** Treat ghost state at the moment of tile-sharing as authoritative: *frightened* → ghost is eaten (see §4), *chase/scatter* → Pac-Man loses a life. This must be evaluated with the ghost's **current** mode on the frame of collision.
+- **[DECISION]** A fatal collision freezes the entire scene for 60 ticks, then hides ghosts and fruit and plays a 120-tick Pac-Man death animation including a final spark. The maze remains without actors for 60 more ticks; only then is a life deducted. Remaining lives lead to the normal READY intro, while the last life leads to a centered red `GAME OVER`. Collectibles already eaten remain consumed.
+- **[DECISION]** Until authorized death sound assets are supplied, this sequence is silent. Its animation is procedurally generated and is not an exact reproduction of the arcade sprites.
 
 ### 1.5 Victory/Progression Condition
 - **[FACT]** Clearing all dots in the maze (240 + 4) ends the round and advances the level counter; there is no final "win" screen described in the dossier — the game is designed to continue indefinitely with escalating/stabilizing difficulty (see §5).
@@ -60,7 +65,7 @@ Three sources of points, matching the dossier:
 
 ### 1.8 Pause
 - **[DECISION]** Pressing `P` pauses the match as a desktop convenience, not an arcade-fidelity feature. Pressing `P` again resumes. While paused, the whole simulation is frozen (phase timers, bonus timers, movement, and gameplay input) and resumes exactly where it stopped, so pausing does not alter any tick-counted behavior.
-- **[DECISION]** Pausing is possible during the READY! intro, active play, and the level-clear flash. It is rejected when no match exists or after game over, and a new match always starts unpaused.
+- **[DECISION]** Pausing is possible during the READY! intro, active play, the ghost-capture pause, the death sequence, and the level-clear flash. It is rejected when no match exists or after game over, and a new match always starts unpaused.
 - **[DECISION]** While paused, a centered yellow `PAUSED` message replaces the `READY!` message position on the corridor below the ghost house; the rest of the screen is drawn unchanged.
 
 ---
@@ -124,7 +129,7 @@ Three sources of points, matching the dossier:
 - **[DECISION]** The visibility duration is drawn uniformly from 540 to 600 ticks inclusive (9–10 s at 60 Hz) from a pseudo-random generator that is independent of the frightened-mode PRNG and is not reseeded at level start or life loss, so fruit timing is not pattern-reproducible, matching the source. The generator is injectable for deterministic tests.
 - **[DECISION]** Pac-Man eats the fruit when his center point lies within half a cell (8 logical pixels) of the fruit's center on both axes, i.e., when the sprites actually overlap, rather than by tile occupancy. Eating the fruit pauses Pac-Man for 1 frame, like a regular dot.
 - **[DECISION]** After the fruit is eaten, its point value replaces it for 2 seconds (120 ticks), rendered in pink with the HUD font because the sprite atlas has no numeric score sprites. The popup is purely visual.
-- **[DECISION]** A visible fruit disappears immediately when Pac-Man loses a life or when the level is cleared, and is not rescheduled; the score popup is likewise discarded. Fruit timers advance only during active play.
+- **[DECISION]** A visible fruit or score popup remains frozen during the death collision freeze and disappears when the death animation begins; it is not rescheduled. It disappears immediately on level clear. Fruit timers advance only during active play.
 
 ---
 
@@ -169,6 +174,7 @@ Three sources of points, matching the dossier:
 - Target tile = Pac-Man's current tile, directly. The simplest and most aggressive scheme.
 - Special "**Cruise Elroy**" behavior: on each level, once remaining dots fall at/below a level-defined threshold ("Elroy 1"), Blinky speeds up to at least Pac-Man's speed; at a second, lower threshold ("Elroy 2"), he speeds up again to faster than Pac-Man. While in Elroy state, Blinky's *scatter* target also switches to Pac-Man's tile (i.e., he keeps chasing even during scatter periods), though he still obeys forced reversals at mode changes.
 - **[FACT]** Elroy status is suspended after Pac-Man loses a life, until Clyde is seen exiting the ghost house again; only then does Elroy tracking resume based on the current dot count.
+- **[DECISION]** While only Blinky is implemented, suspend Elroy for the rest of the current level after a life is lost. A new level or match enables it again. Restore the Clyde-exit rule when Clyde is introduced; do not simulate an invisible Clyde release.
 - See `Blinky.png` for the direct-targeting illustration.
 
 **Pinky ("Speedy")** — **[FACT]**
@@ -209,6 +215,7 @@ Three sources of points, matching the dossier:
 | 21+   | 90%           | 95%                  |
 
 - **[FACT]** "100% speed" is quantified in the dossier as 75.75757625 pixels/second — a concrete reference value worth preserving for faithful timing even if the clone's resolution/scale differs (scale all speeds relative to tile size, not absolute pixels, if the grid size changes).
+- **[DECISION]** Based on the project owner's arcade reference, returning eyes use 200% of that base speed at every level, including in the side tunnels: approximately 151.5 original pixels/second, or 18.94 tiles/second. They retain the fixed house target and shared navigation routine.
 - **[FACT]** Ghosts in the tunnel move at a further-reduced "tunnel speed" (e.g., 40–50% depending on level — see Appendix table).
 - **[FACT]** From level 21 onward, ghosts move *faster* than Pac-Man even at normal (non-Elroy) speed — a notable difficulty inflection point.
 
