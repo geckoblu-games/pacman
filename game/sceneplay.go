@@ -54,9 +54,11 @@ type ScenePlay struct {
 	smallFace *text.GoTextFace
 	// pacMan draws the player's normal and death sprites.
 	pacMan *pacManSprite
+	// sounds plays the simulation's cues and background loops.
+	sounds *soundPlayer
 }
 
-// newScenePlay loads rendering resources and binds the scene to the shared state.
+// newScenePlay loads rendering and audio resources and binds the scene to the shared state.
 func newScenePlay(state *GameState) (*ScenePlay, error) {
 	images, err := assets.LoadGameImages(image.Pt(ScreenWidth, ScreenHeight))
 	if err != nil {
@@ -70,34 +72,42 @@ func newScenePlay(state *GameState) (*ScenePlay, error) {
 	if err != nil {
 		return nil, err
 	}
+	sounds, err := newSoundPlayer()
+	if err != nil {
+		return nil, err
+	}
 	return &ScenePlay{
 		State:         state,
 		images:        images,
 		highScoreFace: highScoreFace,
 		smallFace:     smallFace,
 		pacMan:        newPacManSprite(images.PacManFrames, images.PacManDeathFrames),
+		sounds:        sounds,
 	}, nil
 }
 
-// Update handles input, advances timers, and updates actors during active play.
-// Enter replaces the arcade's coin insert: from the attract screen or GAME OVER it
-// starts a new match immediately.
+// Update handles input, advances timers, updates actors during active play, and then
+// presents the resulting sound cues and background loop. Enter replaces the arcade's
+// coin insert: from the attract screen or GAME OVER it starts a new match immediately.
+// M toggles mute.
 func (scene *ScenePlay) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && (scene.State.Match == nil || scene.State.Phase == PhaseGameOver) {
-		// TODO(audio): play the coin-insert sound effect here once sound is implemented.
 		scene.State.StartNewMatch()
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyP) {
 		scene.State.TogglePause()
 	}
-	if scene.State.Paused {
-		return nil
+	if inpututil.IsKeyJustPressed(ebiten.KeyM) {
+		scene.sounds.ToggleMute()
 	}
-	previousPhase := scene.State.Phase
-	scene.State.Tick()
-	if scene.State.Phase == PhasePlaying && previousPhase != PhaseGhostCaptured && scene.State.Match != nil {
-		scene.State.UpdateActors(scene.pacManDirection(), GhostMovementEnabled)
+	if !scene.State.Paused {
+		previousPhase := scene.State.Phase
+		scene.State.Tick()
+		if scene.State.Phase == PhasePlaying && previousPhase != PhaseGhostCaptured && scene.State.Match != nil {
+			scene.State.UpdateActors(scene.pacManDirection(), GhostMovementEnabled)
+		}
 	}
+	scene.sounds.Update(scene.State)
 	return nil
 }
 

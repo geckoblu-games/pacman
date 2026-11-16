@@ -20,6 +20,9 @@ A recreation of the arcade game "Pacman" written in GO.
 ### Font
 - [Press Start 2P Font](https://fonts.google.com/specimen/Press+Start+2P)
 
+### Sounds
+- Sound effects and music are taken from [Warhorst/pacman](https://github.com/Warhorst/pacman) (see its README for the original sources); they live in `assets/sounds/` and are embedded in the executable.
+
 ## Requirements
 
 - Go 1.22 or later.
@@ -49,6 +52,7 @@ go run https://github.com/geckoblu-games/pacman-go
 | ----------------------------- | --------------------------------------------------------------------- |
 | Arrow keys or `W` `A` `S` `D` | Steer Pac-Man (held direction is buffered until the turn is possible) |
 | `P`                           | Pause / resume                                                        |
+| `M`                           | Mute / unmute                                                         |
 | `Enter`                       | Start a match from the attract screen or after `GAME OVER`            |
 
 ## Building

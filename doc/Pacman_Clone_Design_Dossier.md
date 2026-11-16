@@ -34,13 +34,13 @@ Three sources of points, matching the dossier:
 4. Bonus fruit — 100 to 5,000 pts depending on level (see §5.3). **[FACT]**
 
 - **[DECISION]** Reset the ghost score sequence when frightened time expires or another energizer is eaten. The 12,000 points for eating all four ghosts with each of the four energizers are the sum of those sixteen awards, not an additional secret bonus, in accordance with the source dossier.
-- **[DECISION]** Capturing a frightened ghost freezes gameplay for 60 ticks. Pac-Man and the captured ghost are hidden, and the awarded points appear at the ghost's collision position; other ghosts remain visible and stationary. Frightened, mode, fruit, and actor timers do not advance. On resumption Pac-Man and the returning eyes appear at their collision positions. The capture is silent until audio assets are available.
+- **[DECISION]** Capturing a frightened ghost freezes gameplay for 60 ticks. Pac-Man and the captured ghost are hidden, and the awarded points appear at the ghost's collision position; other ghosts remain visible and stationary. Frightened, mode, fruit, and actor timers do not advance. On resumption Pac-Man and the returning eyes appear at their collision positions. The capture plays the ghost-eaten effect; the background loop stops during the freeze.
 
 ### 1.4 Lose Condition (Collision)
 - **[FACT]** Collision is defined purely by **tile occupancy**: whenever Pac-Man and a ghost share the same tile (regardless of who moved into whose tile), a life is lost — *except* for the rare "pass-through" edge case (§7.3), which the dossier documents as an authentic artifact of the original's collision detection, not a bug to "fix" for faithfulness purposes.
 - **[AMBIGUITY]** The dossier does not state whether a frightened or already-reversing ghost that shares a tile with Pac-Man as it is being eaten counts differently. **[ASSUMPTION]** Treat ghost state at the moment of tile-sharing as authoritative: *frightened* → ghost is eaten (see §4), *chase/scatter* → Pac-Man loses a life. This must be evaluated with the ghost's **current** mode on the frame of collision.
 - **[DECISION]** A fatal collision freezes the entire scene for 60 ticks, then hides ghosts and fruit and plays a 120-tick Pac-Man death animation including a final spark. The maze remains without actors for 60 more ticks; only then is a life deducted. Remaining lives lead to the normal READY intro, while the last life leads to a centered red `GAME OVER`. Collectibles already eaten remain consumed.
-- **[DECISION]** Until authorized death sound assets are supplied, this sequence is silent. Its animation is procedurally generated and is not an exact reproduction of the arcade sprites.
+- **[DECISION]** The collision freeze is silent; the death sound starts with the animation and lasts its 2 seconds. The animation is procedurally generated and is not an exact reproduction of the arcade sprites.
 
 ### 1.5 Victory/Progression Condition
 - **[FACT]** Clearing all dots in the maze (240 + 4) ends the round and advances the level counter; there is no final "win" screen described in the dossier — the game is designed to continue indefinitely with escalating/stabilizing difficulty (see §5).
@@ -50,10 +50,10 @@ Three sources of points, matching the dossier:
 - **[DECISION]** When the last collectible is consumed, the completed maze flashes blue and white for exactly 2 seconds before the next level begins. The colors alternate for a total of four equal flashes during this interval.
 - **[DECISION]** Pac-Man stops immediately where he is when the level-clear flash begins, and all four ghosts disappear from the screen immediately. The maze flash is the only visible level-clear effect specified here.
 - **[DECISION]** At the start of the next level, show a centered yellow `READY!` message for approximately 2 seconds. Pac-Man and all four ghosts are visible, stationary, and placed at their starting positions during this intro.
-- **[DECISION]** Play a short musical jingle during the new-level intro. Keep gameplay controls locked and all characters stationary until `READY!` has disappeared and the jingle has finished; then unlock controls and let the characters move.
+- **[DECISION]** Play the start jingle only during a match's opening `READY!` intro, as the arcade does; intros after a lost life or a cleared level are silent and keep the ~2-second duration. The opening intro lasts 4.4 seconds (264 ticks), covering the 4.34-second jingle, so gameplay controls stay locked and all characters stationary until `READY!` has disappeared and the jingle has finished; then controls unlock and the characters move.
 - **[DECISION]** The flash is split into eight equal 15-tick segments, starting white as soon as the last collectible is eaten and ending blue, so the maze is blue again when the next level's intro appears.
-- **[DECISION]** The same `READY!` intro (centered yellow message, ~2 seconds, controls locked, automatic start) is shown at the start of a new match and after a life is lost, not only between levels. No key press is required to begin play.
-- **Timing note:** The simulation uses a 60 Hz logical tick (§9.2), so the exact 2-second level-clear flash corresponds to 120 ticks. The READY duration is approximate, not an exact tick count.
+- **[DECISION]** The same `READY!` intro (centered yellow message, controls locked, automatic start) is shown at the start of a new match and after a life is lost, not only between levels; only its duration and jingle differ as described above. No key press is required to begin play.
+- **Timing note:** The simulation uses a 60 Hz logical tick (§9.2), so the exact 2-second level-clear flash corresponds to 120 ticks. The later READY duration is approximate, not an exact tick count; the opening one is fixed by the jingle length.
 
 ### 1.7 Persistent High Score
 - **[DECISION]** Preserve the high score across application runs as an intentional desktop convenience, not an arcade-fidelity requirement inferred from the source dossier. Starting a new match resets its score but retains the record.
@@ -67,12 +67,22 @@ Three sources of points, matching the dossier:
 - **[DECISION]** Pressing `P` pauses the match as a desktop convenience, not an arcade-fidelity feature. Pressing `P` again resumes. While paused, the whole simulation is frozen (phase timers, bonus timers, movement, and gameplay input) and resumes exactly where it stopped, so pausing does not alter any tick-counted behavior.
 - **[DECISION]** Pausing is possible during the READY! intro, active play, the ghost-capture pause, the death sequence, and the level-clear flash. It is rejected when no match exists or after game over, and a new match always starts unpaused.
 - **[DECISION]** While paused, a centered yellow `PAUSED` message replaces the `READY!` message position on the corridor below the ghost house; the rest of the screen is drawn unchanged.
+- **[DECISION]** Pausing also pauses every playing sound, including the opening jingle and the background loop, and resuming continues them in place.
+
+### 1.10 Sound
+- **[FACT]** The arcade plays a start jingle, an alternating waka for each dot, a background siren whose pitch rises as dots are eaten, a distinct loop while ghosts are frightened, another while eaten ghosts' eyes return, and one-shot effects for eating a fruit or a ghost, for Pac-Man's death, for coin insertion and for the extra life.
+- **[DECISION]** Use the recordings published by the Warhorst/pacman project (credited in the README). They provide a single waka bite, a single siren, the frightened and retreating loops, and the start, fruit, ghost and death effects; no coin-insert or extra-life sound is available.
+- **[DECISION]** Generate the siren's rising pitch from the single recording by resampling it at speeds 1.0, 1.05, 1.1 and 1.15, selecting one level per eaten quarter of the level's 244 collectibles. This is an approximation of the arcade's distinct siren recordings, chosen because no separate recordings are available.
+- **[DECISION]** The background loop is a function of the current state: the retreating loop while any eyes return, otherwise the frightened loop while ghosts are frightened, otherwise the siren; it plays only during unpaused active play. The attract screen, the `READY!` intros, the capture freeze, the death sequence, the level-clear flash and `GAME OVER` have no loop.
+- **[DECISION]** Play one waka per eaten coin or energizer. Because only one recording of the bite exists and dots are eaten faster than it lasts, a bite requested while the previous one is playing is queued and played as soon as it ends; further requests during that time are merged into the queued one, so bites never overlap.
+- **[DECISION]** Do not play the record-beaten jingle shipped with the sounds; it is not an arcade behavior. Score-awarded extra lives are not implemented (§5.6), so no extra-life sound is needed.
+- **[DECISION]** `M` toggles mute as a desktop convenience; it silences every sound without stopping or desynchronizing playback.
 
 ### 1.9 Attract Screen and Match Start
 - **[FACT]** The arcade's attract mode is specified in `Pac-Man Attract Mode (Introductory Screen).md`: a silent cast-reveal timeline, a corridor chase with a decoy energizer and four captures worth 200/400/800/1600, a demo play phase, and a coin-insert interrupt leading to a `PUSH START BUTTON` screen with a player-count choice.
 - **[DECISION]** The application launches on the attract screen and reproduces its layout and timeline (phases A–C, 1,170 ticks) using the specification's 8-pixel-tile coordinates scaled to the 16-pixel grid. Sprite positions are read as top-left corners of 16-pixel sprites and converted to centers; the chase and the decoy share the center of row 20. Capture ticks follow from the specified speeds and the 45-tick pauses rather than the specification's approximate frame numbers. The copyright notice and the corridor decoy energizer appear when the chase starts, not during the cast reveal or legend-only interval.
 - **[DECISION]** Demo play (phase D) is not implemented: at tick 1,170 the presentation restarts from its first tick and loops until a match starts.
-- **[DECISION]** `Enter` replaces the coin insert. There is no credit counter, no `PUSH START BUTTON` screen and no two-player option: pressing `Enter` on the attract screen or after `GAME OVER` immediately starts a single-player match with the `READY!` intro. When audio is implemented, the coin-insert sound effect must play at this key press.
+- **[DECISION]** `Enter` replaces the coin insert. There is no credit counter, no `PUSH START BUTTON` screen and no two-player option: pressing `Enter` on the attract screen or after `GAME OVER` immediately starts a single-player match with the `READY!` intro. By project decision, this key press has no coin-insert effect; the start jingle begins at once.
 - **[DECISION]** For arcade fidelity the attract screen shows the `2UP` label and a static `CREDIT  0` line, and the `1UP` field shows the previous match's final score (`00` at launch). Scores use the arcade's two-digit minimum (`00`) on every screen. The `2UP` label is also shown during play, as in the arcade; no second-player score is ever displayed.
 - **[DECISION]** After the last life, `GAME OVER` remains visible for 300 ticks (five seconds, an assumption rather than a measured arcade value) and then returns to the attract screen; `Enter` during `GAME OVER` starts a new match at once.
 
@@ -316,7 +326,7 @@ Two independent, concurrently-active controls govern when a ghost leaves the hou
 
 Before considering the clone "faithful," verify each of the following observable behaviors, grouped by subsystem. These are the testable, player-visible consequences of the rules above and are the most efficient way to catch subtle logic drift during development.
 
-Checked items are implemented and covered by the headless simulation tests in `game/` (see the implementation reference for the test command); the only open item is the audio jingle.
+Checked items are implemented and covered by the headless simulation tests in `game/` (see the implementation reference for the test command); intentional audio deviations are documented in §1.10.
 
 **Movement & Collision**
 - [x] Pac-Man can begin a turn before reaching an intersection's center (cornering) and ghosts cannot.
@@ -342,7 +352,7 @@ Checked items are implemented and covered by the headless simulation tests in `g
 **Level Transitions**
 - [x] Clearing the final collectible starts a 120-tick (2-second) maze flash that alternates blue and white four times; Pac-Man stops in place and all ghosts disappear immediately.
 - [x] The next level shows a centered yellow `READY!` for approximately 2 seconds, with Pac-Man and all ghosts visible, stationary, and at their starting positions. The same intro appears at match start and after a life is lost.
-- [ ] A short jingle plays during the new-level intro; controls remain locked and actors remain still until both `READY!` has disappeared and the jingle has ended.
+- [x] The start jingle plays during a match's opening intro; controls remain locked and actors remain still until both `READY!` has disappeared and the jingle has ended. Later intros are silent and shorter.
 
 **Ghost House**
 - [x] At level start, Pinky/Inky/Clyde leave in the documented order and timing for levels 1, 2, and 3+ respectively.

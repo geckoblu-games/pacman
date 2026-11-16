@@ -576,7 +576,8 @@ func (match *MatchState) releaseWaitingGhost() {
 	}
 }
 
-// UpdateActors advances the actors and checks discrete tile collisions per tick.
+// UpdateActors advances the actors and checks discrete tile collisions per tick; a
+// frightened ghost's capture requests the ghost-eaten sound.
 func (state *GameState) UpdateActors(requested Direction, ghostMovement bool) {
 	if state.Match == nil || state.Phase != PhasePlaying || state.Paused {
 		return
@@ -616,6 +617,7 @@ func (state *GameState) UpdateActors(requested Direction, ghostMovement bool) {
 			match.GhostStreak++
 			match.GhostCapture = GhostCaptureState{X: ghost.X, Y: ghost.Y, Points: points, Kind: ghost.Kind}
 			state.AddScore(points)
+			state.addSoundCue(SoundCueGhostEaten)
 			state.enterPhase(PhaseGhostCaptured)
 		} else {
 			state.LoseLife()

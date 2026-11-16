@@ -4,6 +4,7 @@ import (
 	"errors"
 	"image"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"pacman/highscore"
@@ -228,7 +229,7 @@ func TestNewStartsInAttract(t *testing.T) {
 	if game.State.Phase != PhaseReady || game.State.PhaseTicks != 0 {
 		t.Fatalf("starting a match should enter the ready intro, got %v at tick %d", game.State.Phase, game.State.PhaseTicks)
 	}
-	for tick := 0; tick < ReadyTicks; tick++ {
+	for tick := 0; tick < MatchStartTicks; tick++ {
 		if err := game.Update(); err != nil {
 			t.Fatal(err)
 		}
@@ -249,7 +250,7 @@ func TestAttractDrawReadOnly(t *testing.T) {
 	for tick := 0; tick < AttractCycleTicks; tick++ {
 		before := game.State
 		game.Draw(screen)
-		if game.State != before {
+		if !reflect.DeepEqual(game.State, before) {
 			t.Fatalf("tick %d: drawing the attract screen changed the state", tick)
 		}
 		if err := game.Update(); err != nil {
@@ -336,7 +337,7 @@ func TestScenePlayDelegation(t *testing.T) {
 	if DebugGridEnabled && game.scenePlay.images.DebugGrid == nil {
 		t.Fatal("game draw should initialize the scene's debug grid")
 	}
-	if game.State != before || *game.State.Match != matchBefore {
+	if !reflect.DeepEqual(game.State, before) || *game.State.Match != matchBefore {
 		t.Fatal("drawing should not change the game state")
 	}
 	game.scenePlay.drawDebugAllowedPath(screen)

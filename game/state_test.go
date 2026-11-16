@@ -521,10 +521,14 @@ func TestLevelClearFlashTiming(t *testing.T) {
 	}
 }
 
-// TestReadyIntroTiming checks that every ready entry waits ReadyTicks before play begins.
+// TestReadyIntroTiming checks that the opening ready intro waits MatchStartTicks and
+// every later ready entry waits ReadyTicks before play begins.
 func TestReadyIntroTiming(t *testing.T) {
-	expectIntro := func(state *GameState, context string) {
-		for tick := 0; tick < ReadyTicks; tick++ {
+	expectIntro := func(state *GameState, context string, duration int) {
+		if state.ReadyDuration() != duration {
+			t.Fatalf("%s: expected intro duration %d, got %d", context, duration, state.ReadyDuration())
+		}
+		for tick := 0; tick < duration; tick++ {
 			if state.Phase != PhaseReady || state.PhaseTicks != tick {
 				t.Fatalf("%s: tick %d should still be in the ready intro, got phase %v tick %d", context, tick, state.Phase, state.PhaseTicks)
 			}
@@ -543,15 +547,15 @@ func TestReadyIntroTiming(t *testing.T) {
 		t.Fatal("ticking without a match should do nothing")
 	}
 	state.StartNewMatch()
-	expectIntro(&state, "new match")
+	expectIntro(&state, "new match", MatchStartTicks)
 	state.LoseLife()
 	finishDeath(t, &state)
-	expectIntro(&state, "life lost")
+	expectIntro(&state, "life lost", ReadyTicks)
 	clearLevel(t, &state)
 	for tick := 0; tick < LevelClearTicks; tick++ {
 		state.Tick()
 	}
-	expectIntro(&state, "next level")
+	expectIntro(&state, "next level", ReadyTicks)
 	for tick := 0; tick < 10; tick++ {
 		state.Tick()
 	}
@@ -624,5 +628,73 @@ func TestTogglePause(t *testing.T) {
 	}
 	if state.TogglePause() || state.Paused {
 		t.Fatal("pause should be rejected after game over")
+	}
+}
+
+// TestSoundCues checks that the simulation records the start jingle, waka, ghost, fruit
+// and death cues at the documented moments, that TakeSoundCues drains them, and that
+// rejected operations and the attract screen add nothing.
+func TestSoundCues(t *testing.T) {
+	state := GameState{}
+	if cues := state.TakeSoundCues(); len(cues) != 0 {
+		t.Fatalf("fresh state should have no cues, got %v", cues)
+	}
+	state.StartNewMatch()
+	if cues := state.TakeSoundCues(); !reflect.DeepEqual(cues, []SoundCue{SoundCueStart}) {
+		t.Fatalf("new match should request the start jingle, got %v", cues)
+	}
+	if state.ConsumeCollectible(CoinCoords[0][0], CoinCoords[0][1]) || len(state.SoundCues) != 0 {
+		t.Fatal("locked controls should not record a waka")
+	}
+	state.BeginPlaying()
+	state.ConsumeCollectible(CoinCoords[0][0], CoinCoords[0][1])
+	state.ConsumeCollectible(CoinCoords[0][0], CoinCoords[0][1])
+	state.ConsumeCollectible(EnergizerCoords[0][0], EnergizerCoords[0][1])
+	if cues := state.TakeSoundCues(); !reflect.DeepEqual(cues, []SoundCue{SoundCueWaka, SoundCueWaka}) {
+		t.Fatalf("each consumed collectible should record one waka, got %v", cues)
+	}
+	ghost := &state.Match.Blinky
+	state.Match.PacMan.X, state.Match.PacMan.Y = ghost.X, ghost.Y
+	state.Match.PacMan.EatingPauseTicks = 1
+	state.UpdateActors(DirectionNone, false)
+	if state.Phase != PhaseGhostCaptured {
+		t.Fatal("expected a ghost capture")
+	}
+	if cues := state.TakeSoundCues(); !reflect.DeepEqual(cues, []SoundCue{SoundCueGhostEaten}) {
+		t.Fatalf("capture should record the ghost-eaten cue, got %v", cues)
+	}
+	for range GhostCaptureTicks {
+		state.Tick()
+	}
+	state.Match.Fruit = FruitState{Visible: true, Ticks: 300}
+	state.Match.PacMan.X, state.Match.PacMan.Y = FruitX, FruitY
+	if !state.ConsumeFruit() {
+		t.Fatal("expected the bonus to be eaten")
+	}
+	if cues := state.TakeSoundCues(); !reflect.DeepEqual(cues, []SoundCue{SoundCueFruitEaten}) {
+		t.Fatalf("eating the bonus should record the fruit cue, got %v", cues)
+	}
+	state.LoseLife()
+	for tick := 0; tick < DeathFreezeTicks-1; tick++ {
+		state.Tick()
+	}
+	if len(state.SoundCues) != 0 {
+		t.Fatal("the collision freeze should be silent")
+	}
+	state.Tick()
+	if cues := state.TakeSoundCues(); !reflect.DeepEqual(cues, []SoundCue{SoundCueDying}) {
+		t.Fatalf("the death animation start should record the dying cue, got %v", cues)
+	}
+	finishDeath(t, &state)
+	if len(state.SoundCues) != 0 {
+		t.Fatal("the later READY! intro should not repeat the start jingle")
+	}
+	state.addSoundCue(SoundCueWaka)
+	state.EnterAttract()
+	for range 10 {
+		state.Tick()
+	}
+	if len(state.SoundCues) != 0 {
+		t.Fatal("the attract screen should discard pending cues and stay silent")
 	}
 }

@@ -9,8 +9,12 @@ const (
 	LevelClearTicks = 120
 	// LevelClearFlashes counts the white periods shown during the level-clear flash.
 	LevelClearFlashes = 4
-	// ReadyTicks is the approximate 60 Hz duration of the READY! intro (2 seconds).
+	// ReadyTicks is the approximate 60 Hz duration of the READY! intro (2 seconds) after
+	// a lost life or a cleared level.
 	ReadyTicks = 120
+	// MatchStartTicks is the 60 Hz duration of a match's opening READY! intro (4.4 seconds),
+	// which covers the 4.34-second start jingle.
+	MatchStartTicks = 264
 	// DeathFreezeTicks holds the collision scene for one second.
 	DeathFreezeTicks = 60
 	// DeathAnimationTicks is the two-second implosion and spark sequence.
@@ -66,6 +70,8 @@ type GameState struct {
 	Attract AttractState
 	// Random draws bonus durations; nil creates an unpredictably seeded generator on first use.
 	Random *rand.Rand
+	// SoundCues accumulates one-shot sound requests until the presenter calls TakeSoundCues.
+	SoundCues []SoundCue
 }
 
 // MatchState stores the score, remaining lives, and current level for one match.
@@ -74,6 +80,9 @@ type MatchState struct {
 	Score int
 	// Lives includes the life currently in play.
 	Lives int
+	// Opening marks the match's first READY! intro, which lasts MatchStartTicks and plays
+	// the start jingle; BeginPlaying clears it.
+	Opening bool
 	// Level contains the current parameters and collectible presence flags.
 	Level LevelState
 	// PacMan stores the player's position and movement intent.
@@ -115,26 +124,29 @@ type GhostCaptureState struct {
 }
 
 // StartNewMatch resets score, lives, and level while retaining the session record.
-// The new match starts unpaused in the ready intro, replacing the attract screen or a
-// finished match.
+// The new match starts unpaused in the opening ready intro, replacing the attract
+// screen or a finished match, and requests the start jingle.
 func (state *GameState) StartNewMatch() {
-	state.Match = &MatchState{Lives: InitialLives, Level: NewLevelState(1), PacMan: NewPacManState(), Blinky: NewBlinky()}
+	state.Match = &MatchState{Lives: InitialLives, Opening: true, Level: NewLevelState(1), PacMan: NewPacManState(), Blinky: NewBlinky()}
 	state.Match.Pinky = newPinky(state.Match.Blinky.ghostClock, false)
 	state.Match.Inky = newInky(&state.Match.Blinky)
 	state.Match.Clyde = newClyde(state.Match.Blinky.ghostClock)
 	state.Match.releasePersonalGhosts()
 	state.Paused = false
+	state.SoundCues = state.SoundCues[:0]
+	state.addSoundCue(SoundCueStart)
 	state.enterPhase(PhaseReady)
 }
 
 // EnterAttract discards the current match, if any, remembering its score as LastScore,
-// and starts the attract presentation from its first tick, unpaused.
+// and starts the attract presentation from its first tick, unpaused and silent.
 func (state *GameState) EnterAttract() {
 	if state.Match != nil {
 		state.LastScore = state.Match.Score
 	}
 	state.Match = nil
 	state.Paused = false
+	state.SoundCues = state.SoundCues[:0]
 	state.Attract = newAttractState()
 	state.enterPhase(PhaseAttract)
 }
@@ -202,6 +214,7 @@ func (state *GameState) Tick() {
 		state.PhaseTicks++
 		if state.PhaseTicks == DeathFreezeTicks {
 			state.Match.Fruit = FruitState{}
+			state.addSoundCue(SoundCueDying)
 		}
 		if state.PhaseTicks >= DeathFreezeTicks+DeathAnimationTicks+DeathEmptyTicks {
 			state.finishDeath()
@@ -213,7 +226,7 @@ func (state *GameState) Tick() {
 		}
 	case PhaseReady:
 		state.PhaseTicks++
-		if state.PhaseTicks >= ReadyTicks {
+		if state.PhaseTicks >= state.ReadyDuration() {
 			state.BeginPlaying()
 		}
 	case PhasePlaying:
@@ -279,12 +292,22 @@ func (state *GameState) MazeFlashWhite() bool {
 	return (state.PhaseTicks/segmentTicks)%2 == 0
 }
 
-// BeginPlaying enters active play only when a match is in the ready phase.
-// Tick calls it when the intro expires; callers may use it to skip the intro.
+// ReadyDuration returns the tick count of the current READY! intro: MatchStartTicks
+// for a match's opening intro, ReadyTicks otherwise.
+func (state *GameState) ReadyDuration() int {
+	if state.Match != nil && state.Match.Opening {
+		return MatchStartTicks
+	}
+	return ReadyTicks
+}
+
+// BeginPlaying enters active play only when a match is in the ready phase, ending the
+// opening intro. Tick calls it when the intro expires; callers may use it to skip the intro.
 func (state *GameState) BeginPlaying() bool {
 	if state.Match == nil || state.Phase != PhaseReady {
 		return false
 	}
+	state.Match.Opening = false
 	state.enterPhase(PhasePlaying)
 	return true
 }
@@ -300,9 +323,9 @@ func (state *GameState) AddScore(points int) {
 	}
 }
 
-// ConsumeCollectible awards points for a remaining dot, spawns the bonus when the
-// eaten count reaches 70 or 170, and starts the level-clear flash on the final one;
-// Pac-Man keeps his current position for that phase and any bonus is removed.
+// ConsumeCollectible awards points for a remaining dot, requests the waka sound, spawns
+// the bonus when the eaten count reaches 70 or 170, and starts the level-clear flash on
+// the final one; Pac-Man keeps his current position for that phase and any bonus is removed.
 // It rejects inactive play and returns whether a coin or energizer was consumed.
 func (state *GameState) ConsumeCollectible(column, row int) bool {
 	if state.Match == nil || state.Phase != PhasePlaying {
@@ -312,6 +335,7 @@ func (state *GameState) ConsumeCollectible(column, row int) bool {
 	if points == 0 {
 		return false
 	}
+	state.addSoundCue(SoundCueWaka)
 	state.Match.NoDotTicks = 0
 	if state.Match.GlobalGhostCounter {
 		state.Match.GlobalGhostDots++
@@ -367,8 +391,9 @@ func (state *GameState) spawnFruit() {
 }
 
 // ConsumeFruit awards the level's bonus points when Pac-Man's center overlaps a visible
-// bonus during active play, replacing it with a score popup for FruitScoreTicks and
-// pausing Pac-Man for one tick. It returns whether the bonus was eaten.
+// bonus during active play, replacing it with a score popup for FruitScoreTicks,
+// pausing Pac-Man for one tick and requesting the fruit sound. It returns whether the
+// bonus was eaten.
 func (state *GameState) ConsumeFruit() bool {
 	if state.Match == nil || state.Phase != PhasePlaying {
 		return false
@@ -381,6 +406,7 @@ func (state *GameState) ConsumeFruit() bool {
 	state.Match.Fruit = FruitState{ScoreTicks: FruitScoreTicks, Points: points}
 	player.EatingPauseTicks = max(player.EatingPauseTicks, pacManFruitPauseTicks)
 	state.AddScore(points)
+	state.addSoundCue(SoundCueFruitEaten)
 	return true
 }
 

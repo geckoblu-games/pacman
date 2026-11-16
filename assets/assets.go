@@ -1,4 +1,4 @@
-// Package assets loads embedded images and fonts for the desktop game.
+// Package assets loads embedded images, fonts and sounds for the desktop game.
 package assets
 
 import (
@@ -75,12 +75,12 @@ type GameImages struct {
 	DebugAllowedPath *ebiten.Image
 }
 
-// files embeds PNG images and TTF fonts so runtime loading needs no external files.
+// files embeds PNG images, TTF fonts and Ogg sounds so runtime loading needs no external files.
 //
-//go:embed *.png *.ttf
+//go:embed *.png *.ttf sounds/*.ogg
 var files embed.FS
 
-// ReadFile reads an embedded asset by filename, without the assets/ prefix.
+// ReadFile reads an embedded asset by its path relative to the assets directory.
 func ReadFile(name string) ([]byte, error) {
 	data, err := files.ReadFile(name)
 	if err != nil {

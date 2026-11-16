@@ -137,7 +137,7 @@ The preceding sections describe the arcade reference. This project intentionally
 * **Simulation and scale:** The game advances at 60 ticks per second. Arcade coordinates and speeds in this document use 8-pixel tiles; the renderer scales them to its 16-pixel logical tiles and a `448 x 576` logical screen.
 * **End of the attract cycle:** At tick `1170`, the presentation restarts from Frame 0 instead of entering Phase D. The ROM-recorded demo play and its death/restart loop are not implemented.
 * **Starting a match:** `ENTER` replaces coin insert and starts a single-player match directly with the `READY!` intro. There is no credit counter, `PUSH START BUTTON` screen, or player-count selection. The `2UP` label is decorative; a second player is not available.
-* **Audio:** Sound is not implemented. When it is, the insert sound effect should play when `ENTER` starts a match; the attract presentation itself remains silent.
+* **Audio:** The attract presentation is silent, as in the arcade. By project decision, `ENTER` starts the match without a coin-insert effect; the opening `READY!` jingle begins at once.
 * **Timeline:** The configured movement speeds determine the actual event ticks: Pac-Man eats the decoy at tick `670`, and the four captures occur at ticks `686`, `757`, `827`, and `898`. These differ from the approximate frame numbers in the arcade timeline above.
 * **Cast-table typography:** The displayed character descriptions include a space after the hyphen for legibility. Their icon alignment follows the companion [PNG reference](./Pac-Man%20Attract%20Mode%20(Introductory%20Screen).png).
 
