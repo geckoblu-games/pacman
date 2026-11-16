@@ -59,8 +59,8 @@ var attractGhostColors = [4]color.RGBA{
 var attractCopyrightColor = color.RGBA{R: 255, G: 184, B: 255, A: 255}
 
 // drawAttract renders the attract screen: the top HUD with the previous match's score,
-// the cast table revealed over time, the point legend, copyright and credit lines, the
-// decoy energizer, the corridor chase and the capture scores.
+// the cast table revealed over time, the point legend, credit line, decoy energizer,
+// corridor chase and capture scores. The copyright appears when the chase starts.
 func (scene *ScenePlay) drawAttract(screen *ebiten.Image) {
 	attract := scene.State.Attract
 	scene.drawTopLabel(screen, "1UP", oneUpColumn)
@@ -91,7 +91,9 @@ func (scene *ScenePlay) drawAttract(screen *ebiten.Image) {
 	if attract.DecoyVisible() {
 		drawSpriteCentered(screen, scene.images.Energizer, attractDecoyX(), attractChaseY())
 	}
-	scene.drawAttractText(screen, attractCopyright, attractCopyrightColumn, attractCopyrightRow, attractCopyrightColor)
+	if attract.CopyrightVisible() {
+		scene.drawAttractText(screen, attractCopyright, attractCopyrightColumn, attractCopyrightRow, attractCopyrightColor)
+	}
 	scene.drawAttractText(screen, attractCredit, attractCreditColumn, attractCreditRow, color.White)
 	if attract.PacManVisible() {
 		scene.pacMan.DrawUnwrapped(screen, attract.PacMan)

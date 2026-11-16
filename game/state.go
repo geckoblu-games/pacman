@@ -21,8 +21,8 @@ const (
 	DeathFrameTicks = 12
 	// GhostCaptureTicks is the one-second score display after eating a ghost.
 	GhostCaptureTicks = 60
-	// GameOverTicks is the three-second GAME OVER display before the attract screen returns.
-	GameOverTicks = 180
+	// GameOverTicks is the five-second GAME OVER display before the attract screen returns.
+	GameOverTicks = 300
 )
 
 // Phase identifies the current stage of the match lifecycle.

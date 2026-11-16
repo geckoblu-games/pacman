@@ -186,10 +186,15 @@ func (attract AttractState) EnergizerVisible() bool {
 	return ((attract.Ticks-attractChaseTick)/attractFlashHalfPeriod)%2 == 0
 }
 
-// DecoyVisible reports whether the decoy energizer is drawn; it flashes with the legend
-// energizer and disappears once eaten.
+// CopyrightVisible reports whether the attract copyright is shown, starting with the chase.
+func (attract AttractState) CopyrightVisible() bool {
+	return attract.ChaseActive()
+}
+
+// DecoyVisible reports whether the decoy energizer is drawn: it appears with the chase,
+// flashes with the legend energizer and disappears once eaten.
 func (attract AttractState) DecoyVisible() bool {
-	return !attract.DecoyEaten && attract.EnergizerVisible()
+	return attract.ChaseActive() && !attract.DecoyEaten && attract.EnergizerVisible()
 }
 
 // ChaseActive reports whether the chase actors are on stage.

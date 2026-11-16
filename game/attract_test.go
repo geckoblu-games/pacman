@@ -22,7 +22,7 @@ func TestAttractCastSpriteCenter(t *testing.T) {
 	}
 }
 
-// TestAttractRevealTimeline checks the cast, legend and energizer reveal ticks.
+// TestAttractRevealTimeline checks the cast, legend, energizer and copyright reveal ticks.
 func TestAttractRevealTimeline(t *testing.T) {
 	for index := range attractGhostRevealTicks {
 		before := runAttract(attractGhostRevealTicks[index] - 1)
@@ -37,11 +37,20 @@ func TestAttractRevealTimeline(t *testing.T) {
 	}
 	before := runAttract(attractLegendTick - 1)
 	legend := runAttract(attractLegendTick)
-	if before.LegendVisible() || before.EnergizerVisible() || before.DecoyVisible() || before.ChaseActive() {
+	if before.LegendVisible() || before.EnergizerVisible() || before.DecoyVisible() ||
+		before.CopyrightVisible() || before.ChaseActive() {
 		t.Fatal("legend, energizers and actors should be hidden before the legend tick")
 	}
-	if !legend.LegendVisible() || !legend.EnergizerVisible() || !legend.DecoyVisible() || legend.ChaseActive() {
-		t.Fatal("legend tick should show the legend and both steady energizers without actors")
+	if !legend.LegendVisible() || !legend.EnergizerVisible() || legend.DecoyVisible() ||
+		legend.CopyrightVisible() || legend.ChaseActive() {
+		t.Fatal("legend tick should show the point legend and its energizer, but not the decoy or actors")
+	}
+	if runAttract(attractChaseTick - 1).CopyrightVisible() {
+		t.Fatal("copyright should remain hidden until the chase starts")
+	}
+	chase := runAttract(attractChaseTick)
+	if !chase.CopyrightVisible() || !chase.DecoyVisible() {
+		t.Fatal("copyright and decoy energizer should appear when the chase starts")
 	}
 	for tick := attractLegendTick; tick < attractChaseTick; tick++ {
 		if !runAttract(tick).EnergizerVisible() {
