@@ -1,8 +1,8 @@
 package game
 
 const (
-	// AttractCycleTicks is the length of the attract presentation; the sequence restarts
-	// from the empty screen when the counter reaches it (no demo play is shown).
+	// AttractCycleTicks is the length of the attract presentation; the scene is finished
+	// when the counter reaches it (no demo play is shown).
 	AttractCycleTicks = 1170
 	// attractLegendTick is the tick at which the point legend and the decoy energizer appear.
 	attractLegendTick = 450
@@ -50,9 +50,9 @@ var attractGhostNicknames = [4]string{`"BLINKY"`, `"PINKY"`, `"INKY"`, `"CLYDE"`
 
 // AttractState stores the renderer-independent progress of the attract-mode presentation:
 // the cast reveal timeline, the corridor chase and the capture sequence. It is driven by
-// Tick at 60 Hz and restarts automatically after AttractCycleTicks.
+// Tick at 60 Hz; GameState switches scene when Finished reports true.
 type AttractState struct {
-	// Ticks counts ticks since the presentation started and wraps at AttractCycleTicks.
+	// Ticks counts ticks since the presentation started; it stops at AttractCycleTicks.
 	Ticks int
 	// PacMan stores the chase actor's logical-pixel center, facing and mouth animation.
 	PacMan PacManState
@@ -113,15 +113,14 @@ func newAttractState() AttractState {
 	return attract
 }
 
-// Tick advances the presentation by one 60 Hz tick: it restarts the cycle at
-// AttractCycleTicks, counts down a capture pause, or moves the chase actors once the
-// chase has started, eating the decoy and capturing ghosts when Pac-Man reaches them.
+// Tick advances the presentation by one 60 Hz tick until it is finished: it counts down
+// a capture pause, or moves the chase actors once the chase has started, eating the
+// decoy and capturing ghosts when Pac-Man reaches them.
 func (attract *AttractState) Tick() {
-	attract.Ticks++
-	if attract.Ticks >= AttractCycleTicks {
-		*attract = newAttractState()
+	if attract.Finished() {
 		return
 	}
+	attract.Ticks++
 	if attract.Ticks < attractChaseTick {
 		return
 	}
@@ -157,6 +156,11 @@ func (attract *AttractState) Tick() {
 		}
 	}
 	attract.PacMan.animate(true)
+}
+
+// Finished reports whether the presentation has run for AttractCycleTicks.
+func (attract AttractState) Finished() bool {
+	return attract.Ticks >= AttractCycleTicks
 }
 
 // GhostRevealed reports whether the cast-order ghost's table sprite has appeared.

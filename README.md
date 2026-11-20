@@ -55,6 +55,8 @@ go run https://github.com/geckoblu-games/pacman-go
 | `M`                           | Mute / unmute                                                         |
 | `Enter`                       | Start a match from the attract screen or after `GAME OVER`            |
 
+After the classic cast presentation, the attract screen shows a controls legend that lists these keys.
+
 ## Building
 
 ```sh

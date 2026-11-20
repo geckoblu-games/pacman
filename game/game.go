@@ -10,7 +10,7 @@ import (
 // Game owns the session state and delegates updates and rendering to ScenePlay.
 // Use New to initialize the scene before passing a Game to Ebitengine.
 type Game struct {
-	// State contains the session record, the attract presentation and the current match
+	// State contains the session record, the attract-loop scenes and the current match
 	// shared with the scene.
 	State GameState
 	// SaveHighScore optionally persists the record at level completion and game over.
@@ -21,7 +21,7 @@ type Game struct {
 	lastPhase Phase
 }
 
-// New loads the scene's assets and starts the attract presentation.
+// New loads the scene's assets and starts the attract loop.
 func New() (*Game, error) {
 	game := &Game{}
 	scene, err := newScenePlay(&game.State)

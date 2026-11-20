@@ -11,17 +11,6 @@ func runAttract(ticks int) AttractState {
 	return attract
 }
 
-// TestAttractCastSpriteCenter checks cast icons use the reference image's text-row centers.
-func TestAttractCastSpriteCenter(t *testing.T) {
-	for _, row := range attractCastRows {
-		x, y := attractCastSpriteCenter(row)
-		if x != 80 || y != float64(row*CellSize+6) {
-			t.Fatalf("cast sprite at row %d should be centered at (80, %d), got (%v, %v)",
-				row, row*CellSize+6, x, y)
-		}
-	}
-}
-
 // TestAttractRevealTimeline checks the cast, legend, energizer and copyright reveal ticks.
 func TestAttractRevealTimeline(t *testing.T) {
 	for index := range attractGhostRevealTicks {
@@ -151,9 +140,45 @@ func TestAttractCaptureSequence(t *testing.T) {
 	if attract.PacMan.X <= ScreenWidth {
 		t.Fatal("Pac-Man should have left the screen before the cycle ends")
 	}
+	if attract.Finished() {
+		t.Fatalf("presentation should not be finished before tick %d", AttractCycleTicks)
+	}
 	attract.Tick()
-	if attract != newAttractState() {
-		t.Fatalf("cycle should restart from the initial presentation at tick %d", AttractCycleTicks)
+	finished := attract
+	attract.Tick()
+	if !finished.Finished() || finished.Ticks != AttractCycleTicks || attract != finished {
+		t.Fatalf("presentation should finish and stop at tick %d", AttractCycleTicks)
+	}
+}
+
+// TestAttractLoopScenes checks that the attract loop opens with the presentation,
+// continues with the controls scene when it finishes, and returns to the presentation.
+func TestAttractLoopScenes(t *testing.T) {
+	state := GameState{}
+	state.EnterAttract()
+	if state.AttractScene != AttractScenePresentation || state.Attract != newAttractState() {
+		t.Fatal("the attract loop should open with a fresh presentation")
+	}
+	for tick := 0; tick < AttractCycleTicks-1; tick++ {
+		state.Tick()
+		if state.AttractScene != AttractScenePresentation || state.Attract.Ticks != tick+1 {
+			t.Fatalf("tick %d: presentation should run for %d ticks", tick, AttractCycleTicks)
+		}
+	}
+	state.Tick()
+	if state.Phase != PhaseAttract || state.AttractScene != AttractSceneControls || state.Controls != newControlsState() {
+		t.Fatal("a finished presentation should start a fresh controls scene")
+	}
+	for tick := 0; tick < ControlsCycleTicks-1; tick++ {
+		state.Tick()
+		if state.AttractScene != AttractSceneControls || state.Controls.Ticks != tick+1 {
+			t.Fatalf("tick %d: controls scene should run for %d ticks", tick, ControlsCycleTicks)
+		}
+	}
+	state.Tick()
+	if state.Phase != PhaseAttract || state.AttractScene != AttractScenePresentation ||
+		state.Attract != newAttractState() || state.Match != nil {
+		t.Fatal("a finished controls scene should loop back to a fresh presentation")
 	}
 }
 
@@ -162,12 +187,13 @@ func TestAttractCaptureSequence(t *testing.T) {
 func TestEnterAttractAndGameOverReturn(t *testing.T) {
 	state := GameState{}
 	state.EnterAttract()
-	if state.Phase != PhaseAttract || state.Match != nil || state.LastScore != 0 || state.Attract != newAttractState() {
-		t.Fatal("entering attract without a match should show 00 and a fresh presentation")
+	if state.Phase != PhaseAttract || state.Match != nil || state.LastScore != 0 ||
+		state.AttractScene != AttractScenePresentation || state.Attract != newAttractState() {
+		t.Fatal("entering attract without a match should show 00 and a fresh loop")
 	}
 	state.Tick()
 	if state.Attract.Ticks != 1 || state.PhaseTicks != 1 {
-		t.Fatal("ticking in attract should advance the presentation")
+		t.Fatal("ticking in attract should advance the current scene")
 	}
 	state.StartNewMatch()
 	state.BeginPlaying()
@@ -183,8 +209,8 @@ func TestEnterAttractAndGameOverReturn(t *testing.T) {
 	}
 	state.Tick()
 	if state.Phase != PhaseAttract || state.Match != nil || state.LastScore != 370 || state.HighScore != 370 ||
-		state.Attract != newAttractState() {
-		t.Fatal("game over should return to a fresh attract screen remembering the last score and record")
+		state.AttractScene != AttractScenePresentation || state.Attract != newAttractState() {
+		t.Fatal("game over should return to a fresh attract loop remembering the last score and record")
 	}
 	if state.TogglePause() || state.Paused {
 		t.Fatal("attract screen should reject pause")

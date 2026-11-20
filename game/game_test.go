@@ -207,23 +207,33 @@ func TestBonusSpritesLoaded(t *testing.T) {
 	}
 }
 
-// TestNewStartsInAttract checks that a new game shows the attract screen, that the
-// presentation loops without a match, and that starting a match enters the READY! intro.
+// TestNewStartsInAttract checks that a new game shows the attract presentation, that the
+// attract loop runs both scenes without a match, and that starting a match enters the
+// READY! intro.
 func TestNewStartsInAttract(t *testing.T) {
 	game, err := New()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if game.State.Phase != PhaseAttract || game.State.Match != nil {
-		t.Fatalf("new game should start on the attract screen, got %v", game.State.Phase)
+	if game.State.Phase != PhaseAttract || game.State.AttractScene != AttractScenePresentation || game.State.Match != nil {
+		t.Fatalf("new game should start on the attract presentation, got %v", game.State.Phase)
 	}
 	for tick := 0; tick < AttractCycleTicks+10; tick++ {
 		if err := game.Update(); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if game.State.Phase != PhaseAttract || game.State.Match != nil || game.State.Attract.Ticks != 10 {
-		t.Fatalf("attract screen should loop without starting a match: phase %v tick %d", game.State.Phase, game.State.Attract.Ticks)
+	if game.State.Phase != PhaseAttract || game.State.AttractScene != AttractSceneControls || game.State.Controls.Ticks != 10 {
+		t.Fatalf("presentation should be followed by the controls scene: phase %v tick %d", game.State.Phase, game.State.Controls.Ticks)
+	}
+	for tick := 0; tick < ControlsCycleTicks; tick++ {
+		if err := game.Update(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if game.State.Phase != PhaseAttract || game.State.AttractScene != AttractScenePresentation ||
+		game.State.Match != nil || game.State.Attract.Ticks != 10 {
+		t.Fatalf("attract loop should restart without starting a match: phase %v tick %d", game.State.Phase, game.State.Attract.Ticks)
 	}
 	game.State.StartNewMatch()
 	if game.State.Phase != PhaseReady || game.State.PhaseTicks != 0 {
@@ -239,7 +249,19 @@ func TestNewStartsInAttract(t *testing.T) {
 	}
 }
 
-// TestAttractDrawReadOnly checks that drawing every attract tick does not mutate state.
+// TestAttractCastSpriteCenter checks cast icons use the reference image's text-row centers.
+func TestAttractCastSpriteCenter(t *testing.T) {
+	for _, row := range attractCastRows {
+		x, y := attractCastSpriteCenter(row)
+		if x != 80 || y != float64(row*CellSize+6) {
+			t.Fatalf("cast sprite at row %d should be centered at (80, %d), got (%v, %v)",
+				row, row*CellSize+6, x, y)
+		}
+	}
+}
+
+// TestAttractDrawReadOnly checks that drawing every tick of both attract scenes does not
+// mutate state.
 func TestAttractDrawReadOnly(t *testing.T) {
 	game, err := New()
 	if err != nil {
@@ -247,7 +269,7 @@ func TestAttractDrawReadOnly(t *testing.T) {
 	}
 	screen := ebiten.NewImage(ScreenWidth, ScreenHeight)
 	defer screen.Deallocate()
-	for tick := 0; tick < AttractCycleTicks; tick++ {
+	for tick := 0; tick < ControlsCycleTicks+AttractCycleTicks; tick++ {
 		before := game.State
 		game.Draw(screen)
 		if !reflect.DeepEqual(game.State, before) {

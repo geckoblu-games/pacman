@@ -127,13 +127,17 @@ func (scene *ScenePlay) pacManDirection() Direction {
 	}
 }
 
-// Draw renders the attract screen in PhaseAttract. Otherwise it composes debug
+// Draw renders the current attract-loop scene in PhaseAttract. Otherwise it composes debug
 // backgrounds, walls, collectibles, the bonus or its score popup, Pac-Man, ghosts, the
 // grid, the HUD, and the READY! intro or PAUSED message. The maze uses the white walls
 // during white flash segments.
 func (scene *ScenePlay) Draw(screen *ebiten.Image) {
 	if scene.State.Phase == PhaseAttract {
-		scene.drawAttract(screen)
+		if scene.State.AttractScene == AttractSceneControls {
+			scene.drawControls(screen)
+		} else {
+			scene.drawAttract(screen)
+		}
 		return
 	}
 	if DebugAllowedPathEnabled {

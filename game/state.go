@@ -48,8 +48,20 @@ const (
 	// PhaseGameOver shows the result of a match with no remaining lives until Tick
 	// returns to the attract screen or a new match starts.
 	PhaseGameOver
-	// PhaseAttract runs the attract-mode presentation without a match until a new match starts.
+	// PhaseAttract runs the attract loop's scenes without a match until a new match starts.
 	PhaseAttract
+)
+
+// AttractScene identifies one scene of the attract loop shown in PhaseAttract.
+type AttractScene uint8
+
+const (
+	// AttractScenePresentation shows the arcade cast reveal, chase and captures; it
+	// opens the loop.
+	AttractScenePresentation AttractScene = iota
+	// AttractSceneControls shows the key legend, a project addition without an arcade
+	// counterpart; it closes the loop.
+	AttractSceneControls
 )
 
 // GameState stores the session record, current phase, and optional active match.
@@ -66,7 +78,13 @@ type GameState struct {
 	Paused bool
 	// Match is nil until a match is started and while the attract screen is shown.
 	Match *MatchState
-	// Attract stores the attract presentation; it is meaningful only in PhaseAttract.
+	// AttractScene selects the attract-loop scene currently shown in PhaseAttract.
+	AttractScene AttractScene
+	// Controls stores the controls scene; it is meaningful only in PhaseAttract with
+	// AttractSceneControls.
+	Controls ControlsState
+	// Attract stores the attract presentation; it is meaningful only in PhaseAttract with
+	// AttractScenePresentation.
 	Attract AttractState
 	// Random draws bonus durations; nil creates an unpredictably seeded generator on first use.
 	Random *rand.Rand
@@ -139,7 +157,8 @@ func (state *GameState) StartNewMatch() {
 }
 
 // EnterAttract discards the current match, if any, remembering its score as LastScore,
-// and starts the attract presentation from its first tick, unpaused and silent.
+// and starts the attract loop from the first tick of its opening scene, the arcade
+// presentation, unpaused and silent.
 func (state *GameState) EnterAttract() {
 	if state.Match != nil {
 		state.LastScore = state.Match.Score
@@ -147,8 +166,33 @@ func (state *GameState) EnterAttract() {
 	state.Match = nil
 	state.Paused = false
 	state.SoundCues = state.SoundCues[:0]
-	state.Attract = newAttractState()
+	state.enterAttractScene(AttractScenePresentation)
 	state.enterPhase(PhaseAttract)
+}
+
+// enterAttractScene selects an attract-loop scene and resets it to its first tick.
+func (state *GameState) enterAttractScene(scene AttractScene) {
+	state.AttractScene = scene
+	state.Controls = newControlsState()
+	state.Attract = newAttractState()
+}
+
+// tickAttract advances the current attract-loop scene by one tick and, when it is
+// finished, starts the next one: the presentation is followed by the controls legend,
+// which loops back to the presentation.
+func (state *GameState) tickAttract() {
+	switch state.AttractScene {
+	case AttractScenePresentation:
+		state.Attract.Tick()
+		if state.Attract.Finished() {
+			state.enterAttractScene(AttractSceneControls)
+		}
+	case AttractSceneControls:
+		state.Controls.Tick()
+		if state.Controls.Finished() {
+			state.enterAttractScene(AttractScenePresentation)
+		}
+	}
 }
 
 // TogglePause flips the pause flag of a match that is not over and reports the new
@@ -168,13 +212,13 @@ func (state *GameState) enterPhase(phase Phase) {
 	state.PhaseTicks = 0
 }
 
-// Tick advances the attract presentation, the timed phases, or active fruit and ghost
+// Tick advances the attract loop, the timed phases, or active fruit and ghost
 // timers by one 60 Hz tick. Game over returns to the attract screen after GameOverTicks.
 // Other phases and a paused match are unaffected.
 func (state *GameState) Tick() {
 	if state.Phase == PhaseAttract {
 		state.PhaseTicks++
-		state.Attract.Tick()
+		state.tickAttract()
 		return
 	}
 	if state.Match == nil || state.Paused {
