@@ -86,7 +86,7 @@ Pacman is a Go application built with Ebitengine v2, run natively on the desktop
 
 - `main.go` is the executable entry point. It calculates the initial window dimensions from the game's logical dimensions and scale, sets the title and window icons, constructs the game, restores the high score, and starts Ebitengine's event loop. It supplies the game's save callback and saves again after the event loop returns, including normal window closure and run errors. Asset initialization and run errors are fatal; persistence errors are logged without preventing play or normal exit.
 - `go.mod` declares module `pacman`, the Go toolchain version and Ebitengine v2; the audio packages pull in Ebitengine's `oto` output library and the `oggvorbis` decoder as indirect dependencies. `go.sum` records dependency checksums.
-- `README.md` contains user-facing requirements, run/build instructions, the browser build and deployment notes, controls, and asset attributions (font and sound sources).
+- `README.md` contains the link to the published browser build, controls, build-from-source and run instructions, and asset attributions (font and sound sources).
 
 ### `web/` and `.github/workflows/`
 
@@ -245,12 +245,14 @@ Natural ownership boundaries for this work are: new scenes or phases belong in `
 
 ## Build and Verification
 
-The README documents Go 1.22 or later and Ebitengine's platform requirements. On Linux, a C compiler and native graphics/audio development libraries may be required. Typical commands from the repository root are:
+The README documents Go 1.27 or later (matching the `go 1.27.4` directive in `go.mod`) and defers Ebitengine's native system dependencies (a C compiler and graphics/audio development libraries on Linux) to Ebitengine's own installation guide rather than listing packages itself. Typical commands from the repository root are:
 
 ```sh
 go run .
-go build -o pacman .
+go build .
 ```
+
+`go build .` produces `pacman` (or `pacman.exe` on Windows) in the repository root, named after the module; both names are ignored by Git.
 
 The state tests cover new-match initialization, session record retention, life loss and game over, pause toggling and freezing, collectible idempotence, level completion and progression, the opening and later intro durations, the recorded sound cues and their draining, and rejected operations outside active play. They also compare all 21 parameter rows directly with the local dossier and verify parameter loading through progression, new-match reset, and the 21+ fallback without mutating the shared table. Attract tests cover the reveal timeline, energizer flashing, entrance positions, the leftward chase and reversal at the decoy, the ordered captures with doubling scores and frozen 45-tick pauses, the presentation's completion, the attract-loop scene sequencing, `EnterAttract`, and the timed return from game over. Controls-scene tests cover the key and description reveal ticks, their match with the cast cadence, the flashing prompt and the stop at `ControlsCycleTicks`. Bonus-strip tests cover current-first ordering, duplicated symbols, the seven-icon limit, insertion and shifting on advancement, preservation after death, and reset on a new match. Bonus-fruit tests use seeded generators to cover the 70/170 triggers, the 540–600 tick range and its randomness, expiry, the half-cell overlap rule, level-dependent scoring, the popup duration, the one-tick pause, and removal on life loss, level clear, and advancement. Pac-Man and ghost tests cover the movement, targeting, mode schedule, fright, red-zone, tunnel, pass-through, capture, eyes, Elroy and ghost-house rules listed in the design dossier's §8 checklist. The dossier is read only by tests, not by the runtime. Simulation tests can run without a display or Ebitengine initialization by naming the non-rendering files (`game.go`, `sceneplay.go`, `sceneattract.go`, `scenecontrols.go`, `spritepacman.go` and `audio.go` import Ebitengine and are excluded):
 
@@ -262,4 +264,4 @@ Persistence unit tests also run without a display: `go test ./highscore`. All fi
 
 `go test ./...` also tests bottom-HUD symmetry, spacing, screen bounds, loading of every bonus sprite, sound decoding and silence trimming, background-loop selection, the attract loop at launch and read-only drawing of both attract scenes, and compiles the graphics and audio integration (the audio device itself is only opened by Ebitengine's running game loop, so these tests do not need a sound card). It requires Ebitengine's native dependencies and a display on Linux (or a virtual display such as `xvfb-run -a go test ./...`). Actual window rendering is not covered by these tests. The only GitHub Actions workflow, `.github/workflows/pages.yml`, builds and deploys the WebAssembly bundle; it does not run tests, which are run locally.
 
-The browser bundle is produced with `GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o dist/pacman.wasm .` together with `web/index.html` and the toolchain's `lib/wasm/wasm_exec.js`; the README lists the full local commands. The same `main.go` serves both targets without build tags.
+The browser bundle is produced with `GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o dist/pacman.wasm .` together with `web/index.html` and the toolchain's `lib/wasm/wasm_exec.js`; `.github/workflows/pages.yml` is the reference for the full command sequence, and the README only links the published page. To serve the bundle locally, copy those three files into `dist/` and run any static HTTP server from there (for example `python3 -m http.server --directory dist 8080`); browsers unlock audio only after the first key press or click. The same `main.go` serves both targets without build tags.

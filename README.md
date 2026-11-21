@@ -1,16 +1,27 @@
 # Pacman
-A recreation of the arcade game "Pacman" written in GO.
+A recreation of the arcade game Pac-Man written in Go.
 
+You can play it online [here](https://geckoblu-games.github.io/pacman-go/).
 
-## 🔧 Powered By
+Or you can build it yourself for a desktop version (see [Build from source](#build-from-source)).
+
+## Controls
+
+| Key                           | Action                                                                |
+| ----------------------------- | --------------------------------------------------------------------- |
+| Arrow keys or `W` `A` `S` `D` | Steer Pac-Man (held direction is buffered until the turn is possible) |
+| `P`                           | Pause / resume                                                        |
+| `M`                           | Mute / unmute                                                         |
+| `Enter`                       | Start a match from the attract screen or after `GAME OVER`            |
+
+## Powered By
 
 - [Go](https://go.dev/)
 - [Ebiten](https://ebitengine.org/)
 
 ## Main resources
-- the great pacman dossier: (multiple links, because this beautiful article gets nuked frequently)
+- the great pacman dossier: (a copy in  ```./doc```)
   - [The Pac-Man Dossier](https://pacman.holenet.info)
-  - [The Pac-Man Dossier (Archive)](https://web.archive.org/web/20220118071921/https://www.gamedeveloper.com/design/the-pac-man-dossier)
   - [Pac-Man Ghost AI Explained](https://www.youtube.com/watch?v=ataGotQ7ir8)
 - Videos of the game
   - [the game in action](https://www.youtube.com/watch?v=-CbyAk3Sn9I)
@@ -21,66 +32,41 @@ A recreation of the arcade game "Pacman" written in GO.
 - [Press Start 2P Font](https://fonts.google.com/specimen/Press+Start+2P)
 
 ### Sounds
-- Sound effects and music are taken from [Warhorst/pacman](https://github.com/Warhorst/pacman) (see its README for the original sources); they live in `assets/sounds/` and are embedded in the executable.
+- Sound effects and music are taken from [Warhorst/pacman](https://github.com/Warhorst/pacman) (see its README for the original sources).
 
-## Requirements
+## Build from source
 
-- Go 1.22 or later.
-- A desktop environment with OpenGL graphics support.
-- On Linux: a C compiler and the development libraries required by Ebitengine.
+Install [Go](https://go.dev/doc/install) 1.27 or later.
 
-On Debian/Ubuntu, install the native dependencies with:
+The game is built with [Ebitengine](https://ebitengine.org/); make sure its system dependencies are installed, see the [installation guide](https://ebitengine.org/en/documents/install.html).
 
-```sh
-sudo apt install build-essential libasound2-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libgl1-mesa-dev libxxf86vm-dev pkg-config
+Clone the repository:
+```
+git clone https://github.com/geckoblu-games/pacman-go.git
+
+cd pacman-go
 ```
 
-For other platforms, see the
-[installation guide](https://ebitengine.org/en/documents/install.html).
+Compile the game:
 
-## 🎮 Run It
-
-If you already have Go installed ([instructions here](https://go.dev/doc/install)), run the game with:
-
-```bash
-go run https://github.com/geckoblu-games/pacman-go
+```
+go build .
 ```
 
-### Controls
+The executable will be created in the project directory.
 
-| Key                           | Action                                                                |
-| ----------------------------- | --------------------------------------------------------------------- |
-| Arrow keys or `W` `A` `S` `D` | Steer Pac-Man (held direction is buffered until the turn is possible) |
-| `P`                           | Pause / resume                                                        |
-| `M`                           | Mute / unmute                                                         |
-| `Enter`                       | Start a match from the attract screen or after `GAME OVER`            |
+### Run
 
-After the classic cast presentation, the attract screen shows a controls legend that lists these keys.
+On Linux and macOS:
 
-## Building
-
-```sh
-go build -o pacman .
+```
 ./pacman
 ```
 
-## 🌐 Play in the Browser
+On Windows:
 
-The game also compiles to WebAssembly and is published to GitHub Pages by the
-[`pages.yml`](.github/workflows/pages.yml) workflow on every push to `main`
-(the repository's Pages source must be set to **GitHub Actions**). The browser
-build keeps the high score only for the current session: it is not persisted.
-
-To build and serve the web version locally:
-
-```sh
-mkdir -p dist
-GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o dist/pacman.wasm .
-cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" dist/
-cp web/index.html dist/
-python3 -m http.server --directory dist 8080
+```
+.\pacman.exe
 ```
 
-Then open <http://localhost:8080/>. Browsers unlock audio only after the first
-key press or click on the page.
 
