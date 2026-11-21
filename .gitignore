@@ -2,3 +2,4 @@ __debug*
 .~lock.*
 pacman
 pacman.exe
+dist/

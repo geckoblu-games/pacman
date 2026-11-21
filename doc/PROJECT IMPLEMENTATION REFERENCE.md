@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Pacman is a Go desktop application built with Ebitengine v2. Its renderer-independent game state owns the attract loop (a controls legend and the attract-mode presentation), the match lifecycle, scoring, collectibles, the bonus fruit, Pac-Man and all four ghosts, and records one-shot sound cues; an Ebitengine audio player in the `game` package presents those cues and the background loops derived from the state.
+Pacman is a Go application built with Ebitengine v2, run natively on the desktop or compiled to WebAssembly for the browser. Its renderer-independent game state owns the attract loop (a controls legend and the attract-mode presentation), the match lifecycle, scoring, collectibles, the bonus fruit, Pac-Man and all four ghosts, and records one-shot sound cues; an Ebitengine audio player in the `game` package presents those cues and the background loops derived from the state.
 
 ## Project Structure
 
@@ -12,6 +12,12 @@ Pacman is a Go desktop application built with Ebitengine v2. Its renderer-indepe
 |-- go.mod
 |-- go.sum
 |-- README.md
+|-- .github/
+|   |-- workflows/
+|   |   `-- pages.yml
+|   `-- instructions/
+|-- web/
+|   `-- index.html
 |-- highscore/
 |   |-- highscore.go
 |   `-- highscore_test.go
@@ -80,7 +86,12 @@ Pacman is a Go desktop application built with Ebitengine v2. Its renderer-indepe
 
 - `main.go` is the executable entry point. It calculates the initial window dimensions from the game's logical dimensions and scale, sets the title and window icons, constructs the game, restores the high score, and starts Ebitengine's event loop. It supplies the game's save callback and saves again after the event loop returns, including normal window closure and run errors. Asset initialization and run errors are fatal; persistence errors are logged without preventing play or normal exit.
 - `go.mod` declares module `pacman`, the Go toolchain version and Ebitengine v2; the audio packages pull in Ebitengine's `oto` output library and the `oggvorbis` decoder as indirect dependencies. `go.sum` records dependency checksums.
-- `README.md` contains user-facing requirements, run/build instructions, controls, and asset attributions (font and sound sources).
+- `README.md` contains user-facing requirements, run/build instructions, the browser build and deployment notes, controls, and asset attributions (font and sound sources).
+
+### `web/` and `.github/workflows/`
+
+- `web/index.html` is the static loader for the WebAssembly build: a black full-window page that loads Go's `wasm_exec.js`, instantiates `pacman.wasm` with `WebAssembly.instantiateStreaming`, removes the loading text, and reports a fetch or instantiation failure in place. Ebitengine creates and sizes the canvas itself.
+- `.github/workflows/pages.yml` publishes the browser build to GitHub Pages on every push to `main` (and manually via `workflow_dispatch`). The build job sets up the toolchain declared in `go.mod`, compiles the module with `GOOS=js GOARCH=wasm` and `-ldflags="-s -w"` into `dist/pacman.wasm`, copies `wasm_exec.js` from `$(go env GOROOT)/lib/wasm/` and `web/index.html` beside it, and uploads `dist/` as the Pages artifact; the deploy job publishes it with `actions/deploy-pages`. The repository's Pages source must be configured as GitHub Actions. `dist/` is ignored by Git. The workflow does not run tests.
 
 ### `game/`
 
@@ -119,7 +130,9 @@ Pacman is a Go desktop application built with Ebitengine v2. Its renderer-indepe
 - `Store.Load` reads a nonnegative decimal integer; a missing file means zero, while malformed data and other read errors are reported. `Store.Save` only writes a record higher than the last successful load or save. It creates parent directories with mode `0755` and writes the integer and newline to a unique temporary file with mode `0600` (Unix permissions). The temporary file is synced and closed before `os.Rename` replaces the destination in the same directory. On Unix this replacement is atomic and the directory is then synced. On Windows, Go's replacement operation is used, but no Unix atomicity guarantee is asserted; directory sync is omitted because directory handles opened by `os.Open` do not support it. Temporary files are cleaned up on failure. Failed saves remain eligible for retry. The store assumes a single application instance; concurrent processes do not coordinate updates.
 - `highscore_test.go` tests platform path selection, invalid roots, Android's explicit-private-path requirement, first-run behavior, restart loading, exact file contents, unchanged-record suppression, invalid data, failed-save retries, and temporary-file cleanup.
 
-The persistence module can be used by Android and iOS hosts, but the application entry point remains desktop-only. There is no mobile packaging or native directory/lifecycle bridge in this repository. A mobile host must load the record, connect checkpoint saves, and save on appropriate lifecycle events; mobile termination does not guarantee that the desktop post-`RunGame` save will run.
+On the WebAssembly build (`GOOS=js`), `DefaultPath` returns the unsupported-platform error, so `main` logs it, leaves `SaveHighScore` unset and the record lives only for the page's lifetime; by project decision there is no browser storage backend.
+
+The persistence module can be used by Android and iOS hosts, but the application entry point is shared by the desktop and browser builds. There is no mobile packaging or native directory/lifecycle bridge in this repository. A mobile host must load the record, connect checkpoint saves, and save on appropriate lifecycle events; mobile termination does not guarantee that the desktop post-`RunGame` save will run.
 
 ### `doc/`
 
@@ -141,7 +154,7 @@ This directory contains documentation and reference material. `Pacman_Clone_Desi
 
 The display is represented as a 28-column by 36-row grid with 16 logical pixels per cell. This gives a fixed internal resolution of 448 x 576 pixels. Grid coordinates are zero-based, with the origin at the top-left. To get a cell's top-left logical pixel position, multiply its column and row by `CellSize`.
 
-`ScreenScale` controls only the initial native window dimensions. It does not alter the internal rendering resolution or the cell-coordinate system. The current scale is 1.2, giving an initial 538 x 691 window; there is no runtime scale or fullscreen option.
+`ScreenScale` controls only the initial native window dimensions. It does not alter the internal rendering resolution or the cell-coordinate system. The current scale is 1.2, giving an initial 538 x 691 window; there is no runtime scale or fullscreen option. In the browser build the window-size, title and icon calls are no-ops: Ebitengine scales the 448 x 576 logical screen to fit the page's canvas.
 
 ### Embedded asset loading
 
@@ -247,4 +260,6 @@ go test game/state.go game/sound.go game/fruit.go game/pacman.go game/ghost.go g
 
 Persistence unit tests also run without a display: `go test ./highscore`. All filesystem tests use temporary directories, not the user's high-score file.
 
-`go test ./...` also tests bottom-HUD symmetry, spacing, screen bounds, loading of every bonus sprite, sound decoding and silence trimming, background-loop selection, the attract loop at launch and read-only drawing of both attract scenes, and compiles the graphics and audio integration (the audio device itself is only opened by Ebitengine's running game loop, so these tests do not need a sound card). It requires Ebitengine's native dependencies and a display on Linux (or a virtual display such as `xvfb-run -a go test ./...`). Actual window rendering is not covered by these tests. There is no continuous-integration workflow in the repository; tests are run locally.
+`go test ./...` also tests bottom-HUD symmetry, spacing, screen bounds, loading of every bonus sprite, sound decoding and silence trimming, background-loop selection, the attract loop at launch and read-only drawing of both attract scenes, and compiles the graphics and audio integration (the audio device itself is only opened by Ebitengine's running game loop, so these tests do not need a sound card). It requires Ebitengine's native dependencies and a display on Linux (or a virtual display such as `xvfb-run -a go test ./...`). Actual window rendering is not covered by these tests. The only GitHub Actions workflow, `.github/workflows/pages.yml`, builds and deploys the WebAssembly bundle; it does not run tests, which are run locally.
+
+The browser bundle is produced with `GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o dist/pacman.wasm .` together with `web/index.html` and the toolchain's `lib/wasm/wasm_exec.js`; the README lists the full local commands. The same `main.go` serves both targets without build tags.

@@ -64,3 +64,23 @@ go build -o pacman .
 ./pacman
 ```
 
+## 🌐 Play in the Browser
+
+The game also compiles to WebAssembly and is published to GitHub Pages by the
+[`pages.yml`](.github/workflows/pages.yml) workflow on every push to `main`
+(the repository's Pages source must be set to **GitHub Actions**). The browser
+build keeps the high score only for the current session: it is not persisted.
+
+To build and serve the web version locally:
+
+```sh
+mkdir -p dist
+GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o dist/pacman.wasm .
+cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" dist/
+cp web/index.html dist/
+python3 -m http.server --directory dist 8080
+```
+
+Then open <http://localhost:8080/>. Browsers unlock audio only after the first
+key press or click on the page.
+

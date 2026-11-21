@@ -1,4 +1,6 @@
-// Command pacman configures the desktop window and starts the game.
+// Command pacman configures the window and starts the game.
+// It builds for the desktop and, with GOOS=js GOARCH=wasm, for the browser,
+// where the window calls are no-ops and the high score is not persisted.
 package main
 
 import (

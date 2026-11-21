@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pac-Man</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #000;
+      color: #fff;
+      font-family: monospace;
+      overflow: hidden;
+    }
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">Loading…</div>
+  <script src="wasm_exec.js"></script>
+  <script>
+    const loading = document.getElementById("loading");
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("pacman.wasm"), go.importObject)
+      .then((result) => {
+        loading.remove();
+        return go.run(result.instance);
+      })
+      .catch((err) => {
+        loading.textContent = "Failed to load the game: " + err;
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
