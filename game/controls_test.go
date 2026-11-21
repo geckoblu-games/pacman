@@ -12,7 +12,7 @@ func runControls(ticks int) ControlsState {
 }
 
 // TestControlsRevealTimeline checks that each key and its description appear in display
-// order with the cast table's cadence, and that the scene finishes after the final hold.
+// order with the cast table's cadence.
 func TestControlsRevealTimeline(t *testing.T) {
 	for index := range attractGhostRevealTicks {
 		if controlsKeyRevealTick(index) != attractGhostRevealTicks[index] ||
@@ -37,14 +37,30 @@ func TestControlsRevealTimeline(t *testing.T) {
 			t.Fatalf("entry %d description should appear exactly at tick %d", index, descriptionTick)
 		}
 	}
-	last := controlsDescriptionRevealTick(len(ControlsEntries) - 1)
-	if ControlsCycleTicks != last+controlsHoldTicks || ControlsCycleTicks != 780 {
-		t.Fatalf("scene should hold %d ticks after the last description, got length %d", controlsHoldTicks, ControlsCycleTicks)
+}
+
+// TestControlsStartPrompt checks its reveal, flashing and exact three-second duration.
+func TestControlsStartPrompt(t *testing.T) {
+	if controlsStartTick != 600 || ControlsCycleTicks != 780 {
+		t.Fatalf("start prompt should run from tick 600 through tick 779, got %d to %d",
+			controlsStartTick, ControlsCycleTicks-1)
+	}
+	if (ControlsState{Ticks: 599}).StartPromptVisible() {
+		t.Fatal("start prompt should be hidden before its reveal")
+	}
+	for tick := 600; tick < 780; tick++ {
+		visible := (ControlsState{Ticks: tick}).StartPromptVisible()
+		if want := ((tick-600)/30)%2 == 0; visible != want {
+			t.Fatalf("tick %d: prompt visibility = %v, want %v", tick, visible, want)
+		}
 	}
 	if runControls(ControlsCycleTicks - 1).Finished() {
 		t.Fatal("scene should not finish before its length")
 	}
 	finished := runControls(ControlsCycleTicks)
+	if finished.StartPromptVisible() {
+		t.Fatal("start prompt should be hidden when the scene ends")
+	}
 	stopped := finished
 	stopped.Tick()
 	if !finished.Finished() || stopped != finished {

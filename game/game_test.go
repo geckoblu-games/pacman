@@ -260,6 +260,14 @@ func TestAttractCastSpriteCenter(t *testing.T) {
 	}
 }
 
+// TestControlsStartSpacing checks that the prompt and title have equal gaps from the entries.
+func TestControlsStartSpacing(t *testing.T) {
+	lastRow := controlsFirstRow + (len(ControlsEntries)-1)*controlsRowSpacing
+	if got, want := controlsStartRow-lastRow, controlsFirstRow-controlsTitleRow; got != want {
+		t.Fatalf("start prompt gap is %d rows, want %d", got, want)
+	}
+}
+
 // TestAttractDrawReadOnly checks that drawing every tick of both attract scenes does not
 // mutate state.
 func TestAttractDrawReadOnly(t *testing.T) {

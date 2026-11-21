@@ -20,6 +20,10 @@ const (
 	controlsKeyColumn = 6
 	// controlsDescriptionColumn is the starting column of the action descriptions.
 	controlsDescriptionColumn = 13
+	// controlsStartRow gives the prompt the same gap from the last entry as the title
+	// has from the first entry.
+	controlsStartRow = controlsFirstRow + (len(ControlsEntries)-1)*controlsRowSpacing +
+		(controlsFirstRow - controlsTitleRow)
 )
 
 // controlsKeyColor is the Pac-Man yellow used for the key labels.
@@ -27,7 +31,8 @@ var controlsKeyColor = color.RGBA{R: 255, G: 255, A: 255}
 
 // drawControls renders the controls scene: the top HUD with the previous match's score
 // and the credit line as on the presentation, the heading from the first tick, then each
-// key label and its description as ControlsState reveals them.
+// key label and its description as ControlsState reveals them, followed by a flashing
+// start prompt.
 func (scene *ScenePlay) drawControls(screen *ebiten.Image) {
 	controls := scene.State.Controls
 	scene.drawTopLabel(screen, "1UP", oneUpColumn)
@@ -49,5 +54,12 @@ func (scene *ScenePlay) drawControls(screen *ebiten.Image) {
 		if controls.KeyDescribed(index) {
 			scene.drawAttractText(screen, entry.Description, controlsDescriptionColumn, row, color.White)
 		}
+	}
+	if controls.StartPromptVisible() {
+		op := &text.DrawOptions{}
+		op.PrimaryAlign = text.AlignCenter
+		op.GeoM.Translate(float64(ScreenWidth)/2, float64(controlsStartRow*CellSize+highScoreTop))
+		op.ColorScale.ScaleWithColor(controlsKeyColor)
+		text.Draw(screen, "PRESS ENTER TO START", scene.highScoreFace, op)
 	}
 }

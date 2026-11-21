@@ -14,7 +14,7 @@ const (
 	ScreenHeight = GridRows * CellSize
 
 	// ScreenScale controls the initial window size and supports positive fractional values.
-	ScreenScale float64 = 1.2
+	ScreenScale float64 = 1
 
 	// DebugGridEnabled toggles the grid independently of the gray path backgrounds.
 	DebugGridEnabled = false
