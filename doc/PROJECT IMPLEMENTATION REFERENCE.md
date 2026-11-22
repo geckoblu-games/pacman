@@ -12,6 +12,7 @@ Pacman is a Go application built with Ebitengine v2, run natively on the desktop
 |-- go.mod
 |-- go.sum
 |-- README.md
+|-- install-linux.sh
 |-- .github/
 |   |-- workflows/
 |   |   `-- pages.yml
@@ -87,6 +88,7 @@ Pacman is a Go application built with Ebitengine v2, run natively on the desktop
 - `main.go` is the executable entry point. It calculates the initial window dimensions from the game's logical dimensions and scale, sets the title and window icons, constructs the game, restores the high score, and starts Ebitengine's event loop. It supplies the game's save callback and saves again after the event loop returns, including normal window closure and run errors. Asset initialization and run errors are fatal; persistence errors are logged without preventing play or normal exit.
 - `go.mod` declares module `pacman`, the Go toolchain version and Ebitengine v2; the audio packages pull in Ebitengine's `oto` output library and the `oggvorbis` decoder as indirect dependencies. `go.sum` records dependency checksums.
 - `README.md` contains the link to the published browser build, controls, build-from-source and run instructions, and asset attributions (font and sound sources).
+- `install-linux.sh` builds a native Linux executable and installs it at `~/.local/bin/pacman` for the current user. The desktop entry and hicolor icons go under `$XDG_DATA_HOME` (or `~/.local/share`). It requires Go and Ebitengine's native build dependencies; it does not install system packages.
 
 ### `web/` and `.github/workflows/`
 

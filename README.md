@@ -69,4 +69,17 @@ On Windows:
 .\pacman.exe
 ```
 
+### Install on Linux
 
+With Go and Ebitengine's Linux system dependencies installed, run:
+
+```
+./install-linux.sh
+```
+
+The script builds the game and adds Pac-Man to the current user's application
+menu without requiring administrator privileges. It installs the executable
+as `~/.local/bin/pacman`; the desktop entry and icons go under `$XDG_DATA_HOME`
+(or `~/.local/share` if unset or relative). To launch `pacman` from a terminal,
+make sure `~/.local/bin` is in your `PATH`. Run the script again to update the
+installation. Game assets are embedded in the executable.
