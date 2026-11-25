@@ -1,7 +1,7 @@
 # Pacman
 A recreation of the arcade game Pac-Man written in Go.
 
-You can play it online [here](https://geckoblu-games.github.io/pacman-go/).
+You can play it online [here](https://geckoblu-games.github.io/pacman/).
 
 Or you can build it yourself for a desktop version (see [Build from source](#build-from-source)).
 
@@ -42,9 +42,9 @@ The game is built with [Ebitengine](https://ebitengine.org/); make sure its syst
 
 Clone the repository:
 ```
-git clone https://github.com/geckoblu-games/pacman-go.git
+git clone https://github.com/geckoblu-games/pacman.git
 
-cd pacman-go
+cd pacman
 ```
 
 Compile the game:

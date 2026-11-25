@@ -28,6 +28,7 @@ jobs:
           GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o dist/pacman.wasm .
           cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" dist/
           cp web/index.html dist/
+          cp assets/icon_32.png dist/favicon.png
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

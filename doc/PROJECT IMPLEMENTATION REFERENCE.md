@@ -92,8 +92,8 @@ Pacman is a Go application built with Ebitengine v2, run natively on the desktop
 
 ### `web/` and `.github/workflows/`
 
-- `web/index.html` is the static loader for the WebAssembly build: a black full-window page that loads Go's `wasm_exec.js`, instantiates `pacman.wasm` with `WebAssembly.instantiateStreaming`, removes the loading text, and reports a fetch or instantiation failure in place. Ebitengine creates and sizes the canvas itself.
-- `.github/workflows/pages.yml` publishes the browser build to GitHub Pages on every push to `main` (and manually via `workflow_dispatch`). The build job sets up the toolchain declared in `go.mod`, compiles the module with `GOOS=js GOARCH=wasm` and `-ldflags="-s -w"` into `dist/pacman.wasm`, copies `wasm_exec.js` from `$(go env GOROOT)/lib/wasm/` and `web/index.html` beside it, and uploads `dist/` as the Pages artifact; the deploy job publishes it with `actions/deploy-pages`. The repository's Pages source must be configured as GitHub Actions. `dist/` is ignored by Git. The workflow does not run tests.
+- `web/index.html` is the static loader for the WebAssembly build: a black full-window page that declares `favicon.png` as its browser tab icon, loads Go's `wasm_exec.js`, instantiates `pacman.wasm` with `WebAssembly.instantiateStreaming`, removes the loading text, and reports a fetch or instantiation failure in place. Ebitengine creates and sizes the canvas itself.
+- `.github/workflows/pages.yml` publishes the browser build to GitHub Pages on every push to `main` (and manually via `workflow_dispatch`). The build job sets up the toolchain declared in `go.mod`, compiles the module with `GOOS=js GOARCH=wasm` and `-ldflags="-s -w"` into `dist/pacman.wasm`, copies `wasm_exec.js` from `$(go env GOROOT)/lib/wasm/` and `web/index.html` beside it, copies `assets/icon_32.png` as `dist/favicon.png`, and uploads `dist/` as the Pages artifact; the deploy job publishes it with `actions/deploy-pages`. The repository's Pages source must be configured as GitHub Actions. `dist/` is ignored by Git. The workflow does not run tests.
 
 ### `game/`
 
