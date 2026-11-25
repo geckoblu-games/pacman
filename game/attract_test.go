@@ -166,19 +166,38 @@ func TestAttractLoopScenes(t *testing.T) {
 		}
 	}
 	state.Tick()
-	if state.Phase != PhaseAttract || state.AttractScene != AttractSceneControls || state.Controls != newControlsState() {
+	if state.Phase != PhaseAttract || state.AttractScene != AttractSceneControls || state.Controls != newControlsState(false) {
 		t.Fatal("a finished presentation should start a fresh controls scene")
 	}
-	for tick := 0; tick < ControlsCycleTicks-1; tick++ {
+	for tick := 0; tick < state.Controls.CycleTicks()-1; tick++ {
 		state.Tick()
 		if state.AttractScene != AttractSceneControls || state.Controls.Ticks != tick+1 {
-			t.Fatalf("tick %d: controls scene should run for %d ticks", tick, ControlsCycleTicks)
+			t.Fatalf("tick %d: controls scene should run for %d ticks", tick, state.Controls.CycleTicks())
 		}
 	}
 	state.Tick()
 	if state.Phase != PhaseAttract || state.AttractScene != AttractScenePresentation ||
 		state.Attract != newAttractState() || state.Match != nil {
 		t.Fatal("a finished controls scene should loop back to a fresh presentation")
+	}
+}
+
+// TestTouchControlsLoop checks the selected mode survives scene resets and uses its shorter duration.
+func TestTouchControlsLoop(t *testing.T) {
+	state := GameState{}
+	state.Controls.Touch = true
+	state.EnterAttract()
+	for tick := 0; tick < AttractCycleTicks; tick++ {
+		state.Tick()
+	}
+	if state.AttractScene != AttractSceneControls || !state.Controls.Touch {
+		t.Fatal("presentation should lead to touch controls")
+	}
+	for tick := 0; tick < state.Controls.CycleTicks(); tick++ {
+		state.Tick()
+	}
+	if state.AttractScene != AttractScenePresentation || !state.Controls.Touch {
+		t.Fatal("touch controls should return to presentation and preserve the mode")
 	}
 }
 

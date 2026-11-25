@@ -14,6 +14,15 @@ Or you can build it yourself for a desktop version (see [Build from source](#bui
 | `M`                           | Mute / unmute                                                         |
 | `Enter`                       | Start a match from the attract screen or after `GAME OVER`            |
 
+On touch screens (for example the browser version on a tablet):
+
+| Gesture                       | Action                                                                |
+| ----------------------------- | --------------------------------------------------------------------- |
+| Swipe anywhere                | Steer Pac-Man (the swiped direction is buffered until the turn is possible; keep dragging to steer again without lifting) |
+| Tap                           | Start a match from the attract screen or after `GAME OVER`            |
+| Tap the top score area        | Pause / resume during a match                                         |
+| Two-finger tap                | Mute / unmute                                                         |
+
 ## Powered By
 
 - [Go](https://go.dev/)

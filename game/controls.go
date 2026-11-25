@@ -8,27 +8,23 @@ const (
 	// controlsDescriptionDelay is the delay between a key and its description, matching
 	// the delay between a cast ghost's sprite and its name.
 	controlsDescriptionDelay = 60
-	// controlsStartTick is when the start prompt begins flashing, after the last key.
-	controlsStartTick = controlsFirstRevealTick + len(ControlsEntries)*controlsRevealInterval
 	// controlsStartFlashHalfPeriod is the duration of each visible or hidden prompt interval.
 	controlsStartFlashHalfPeriod = 30
 	// controlsStartDuration is the three-second duration of the flashing prompt.
 	controlsStartDuration = 180
-	// ControlsCycleTicks is the length of the controls scene, including the start prompt.
-	ControlsCycleTicks = controlsStartTick + controlsStartDuration
 )
 
-// ControlsEntry pairs a key label with the action it performs.
+// ControlsEntry pairs a key or gesture label with the action it performs.
 type ControlsEntry struct {
-	// Key is the label of the key or key pair, using arrow glyphs for the cursor keys.
+	// Key is the label of the key, key pair or touch gesture, using arrow glyphs for the
+	// cursor keys.
 	Key string
-	// Description is the action performed by the key.
+	// Description is the action performed by the key or gesture.
 	Description string
 }
 
-// ControlsEntries lists the game's keys in display order: the four directions, then
-// pause and mute.
-var ControlsEntries = [6]ControlsEntry{
+// keyboardControls lists keyboard instructions in display order.
+var keyboardControls = [...]ControlsEntry{
 	{Key: "↑ / W", Description: "MOVE UP"},
 	{Key: "↓ / S", Description: "MOVE DOWN"},
 	{Key: "← / A", Description: "MOVE LEFT"},
@@ -37,18 +33,54 @@ var ControlsEntries = [6]ControlsEntry{
 	{Key: "M", Description: "MUTE"},
 }
 
+// touchControls lists touch instructions in display order.
+var touchControls = [...]ControlsEntry{
+	{Key: "SWIPE", Description: "MOVE"},
+	{Key: "TAP", Description: "START"},
+	{Key: "TAP HUD", Description: "PAUSE"},
+	{Key: "2 FINGERS", Description: "MUTE"},
+}
+
 // ControlsState stores the renderer-independent progress of the controls scene of the
 // attract loop, a project addition without an arcade counterpart shown after the
 // presentation. It is driven by Tick at 60 Hz; GameState switches scene when Finished
 // reports true.
 type ControlsState struct {
-	// Ticks counts ticks since the scene started; it stops at ControlsCycleTicks.
+	// Ticks counts ticks since the scene started; it stops at CycleTicks.
 	Ticks int
+	// Touch selects touch instructions; false selects keyboard instructions.
+	Touch bool
 }
 
-// newControlsState returns the scene at tick zero before any control is revealed.
-func newControlsState() ControlsState {
-	return ControlsState{}
+// newControlsState returns the selected scene at tick zero before any control is revealed.
+func newControlsState(touch bool) ControlsState {
+	return ControlsState{Touch: touch}
+}
+
+// Entries returns the instructions for the selected presentation mode.
+func (controls ControlsState) Entries() []ControlsEntry {
+	if controls.Touch {
+		return touchControls[:]
+	}
+	return keyboardControls[:]
+}
+
+// startTick is when the start prompt begins flashing, after the last entry.
+func (controls ControlsState) startTick() int {
+	return controlsFirstRevealTick + len(controls.Entries())*controlsRevealInterval
+}
+
+// CycleTicks is the scene's duration in 60 Hz ticks for its selected instructions.
+func (controls ControlsState) CycleTicks() int {
+	return controls.startTick() + controlsStartDuration
+}
+
+// StartPrompt returns the start instruction for the selected presentation mode.
+func (controls ControlsState) StartPrompt() string {
+	if controls.Touch {
+		return "TAP TO START"
+	}
+	return "PRESS ENTER TO START"
 }
 
 // Tick advances the scene by one 60 Hz tick until it is finished.
@@ -59,9 +91,9 @@ func (controls *ControlsState) Tick() {
 	controls.Ticks++
 }
 
-// Finished reports whether the scene has run for ControlsCycleTicks.
+// Finished reports whether the scene has run for its selected duration.
 func (controls ControlsState) Finished() bool {
-	return controls.Ticks >= ControlsCycleTicks
+	return controls.Ticks >= controls.CycleTicks()
 }
 
 // controlsKeyRevealTick returns the tick the display-order entry's key appears.
@@ -86,6 +118,7 @@ func (controls ControlsState) KeyDescribed(index int) bool {
 
 // StartPromptVisible reports whether the start prompt is in a visible flash interval.
 func (controls ControlsState) StartPromptVisible() bool {
-	return controls.Ticks >= controlsStartTick && controls.Ticks < ControlsCycleTicks &&
-		((controls.Ticks-controlsStartTick)/controlsStartFlashHalfPeriod)%2 == 0
+	start := controls.startTick()
+	return controls.Ticks >= start && controls.Ticks < controls.CycleTicks() &&
+		((controls.Ticks-start)/controlsStartFlashHalfPeriod)%2 == 0
 }

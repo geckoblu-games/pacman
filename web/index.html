@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Pac-Man</title>
   <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
   <style>
@@ -13,6 +13,13 @@
       color: #fff;
       font-family: monospace;
       overflow: hidden;
+      /* Leave swipes and taps to the game instead of the browser's scroll, zoom,
+         pull-to-refresh and long-press selection. */
+      touch-action: none;
+      overscroll-behavior: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
     }
     #loading {
       position: absolute;

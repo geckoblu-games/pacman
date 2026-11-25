@@ -59,7 +59,7 @@ const (
 	// AttractScenePresentation shows the arcade cast reveal, chase and captures; it
 	// opens the loop.
 	AttractScenePresentation AttractScene = iota
-	// AttractSceneControls shows the key legend, a project addition without an arcade
+	// AttractSceneControls shows the controls legend, a project addition without an arcade
 	// counterpart; it closes the loop.
 	AttractSceneControls
 )
@@ -173,7 +173,7 @@ func (state *GameState) EnterAttract() {
 // enterAttractScene selects an attract-loop scene and resets it to its first tick.
 func (state *GameState) enterAttractScene(scene AttractScene) {
 	state.AttractScene = scene
-	state.Controls = newControlsState()
+	state.Controls = newControlsState(state.Controls.Touch)
 	state.Attract = newAttractState()
 }
 

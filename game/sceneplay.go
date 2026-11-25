@@ -56,6 +56,22 @@ type ScenePlay struct {
 	pacMan *pacManSprite
 	// sounds plays the simulation's cues and background loops.
 	sounds *soundPlayer
+	// touch converts touch-screen gestures into the keyboard's actions.
+	touch *TouchInput
+	// touchDirection is the latest swiped direction, pending until actors consume it.
+	touchDirection Direction
+	// touchIDs is a reusable buffer for Ebitengine's touch ID queries.
+	touchIDs []ebiten.TouchID
+}
+
+// touchActions collects the one-tick actions produced by the tap gestures finished this tick.
+type touchActions struct {
+	// start is set by a single-finger tap anywhere on the screen.
+	start bool
+	// pause is set by a single-finger tap on the top HUD rows.
+	pause bool
+	// mute is set by a two-finger tap.
+	mute bool
 }
 
 // newScenePlay loads rendering and audio resources and binds the scene to the shared state.
@@ -83,25 +99,34 @@ func newScenePlay(state *GameState) (*ScenePlay, error) {
 		smallFace:     smallFace,
 		pacMan:        newPacManSprite(images.PacManFrames, images.PacManDeathFrames),
 		sounds:        sounds,
+		touch:         newTouchInput(),
 	}, nil
 }
 
-// Update handles input, advances timers, updates actors during active play, and then
-// presents the resulting sound cues and background loop. Enter replaces the arcade's
-// coin insert: from the attract screen or GAME OVER it starts a new match immediately.
-// M toggles mute.
+// Update handles keyboard and touch input, advances timers, updates actors during active
+// play, and then presents the resulting sound cues and background loop. Enter or a tap
+// replaces the arcade's coin insert: from the attract screen or GAME OVER it starts a new
+// match immediately. During a match a tap on the top HUD pauses like P; a two-finger tap
+// toggles mute like M.
 func (scene *ScenePlay) Update() error {
-	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) && (scene.State.Match == nil || scene.State.Phase == PhaseGameOver) {
+	actions := scene.readTouch()
+	startable := scene.State.Match == nil || scene.State.Phase == PhaseGameOver
+	if (inpututil.IsKeyJustPressed(ebiten.KeyEnter) || actions.start) && startable {
 		scene.State.StartNewMatch()
+		scene.touchDirection = DirectionNone
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyP) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyP) || (actions.pause && !startable) {
 		scene.State.TogglePause()
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyM) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyM) || actions.mute {
 		scene.sounds.ToggleMute()
 	}
 	if !scene.State.Paused {
 		previousPhase := scene.State.Phase
+		if previousPhase == PhaseAttract && scene.State.AttractScene == AttractScenePresentation &&
+			scene.State.Attract.Ticks == AttractCycleTicks-1 {
+			scene.State.Controls.Touch = primaryTouchControls()
+		}
 		scene.State.Tick()
 		if scene.State.Phase == PhasePlaying && previousPhase != PhaseGhostCaptured && scene.State.Match != nil {
 			scene.State.UpdateActors(scene.pacManDirection(), GhostMovementEnabled)
@@ -111,7 +136,39 @@ func (scene *ScenePlay) Update() error {
 	return nil
 }
 
-// pacManDirection maps held arrow or WASD keys to one buffered cardinal direction.
+// readTouch feeds this tick's touch presses, positions and releases to the tracker,
+// records the latest swiped direction as pending, and returns the tap actions.
+func (scene *ScenePlay) readTouch() touchActions {
+	var actions touchActions
+	scene.touchIDs = inpututil.AppendJustPressedTouchIDs(scene.touchIDs[:0])
+	for _, id := range scene.touchIDs {
+		x, y := ebiten.TouchPosition(id)
+		scene.touch.Press(int(id), x, y)
+	}
+	scene.touchIDs = ebiten.AppendTouchIDs(scene.touchIDs[:0])
+	for _, id := range scene.touchIDs {
+		x, y := ebiten.TouchPosition(id)
+		if direction := scene.touch.Move(int(id), x, y); direction != DirectionNone {
+			scene.touchDirection = direction
+		}
+	}
+	scene.touchIDs = inpututil.AppendJustReleasedTouchIDs(scene.touchIDs[:0])
+	for _, id := range scene.touchIDs {
+		gesture, _, y := scene.touch.Release(int(id))
+		switch gesture {
+		case TouchGestureTap:
+			actions.start = true
+			actions.pause = touchInPauseZone(y)
+		case TouchGestureTwoFingerTap:
+			actions.mute = true
+		}
+	}
+	return actions
+}
+
+// pacManDirection maps held arrow or WASD keys to one buffered cardinal direction. Without
+// a held key it consumes the pending swipe direction, if any; the simulation keeps
+// either request buffered until the turn is possible.
 func (scene *ScenePlay) pacManDirection() Direction {
 	switch {
 	case ebiten.IsKeyPressed(ebiten.KeyUp), ebiten.IsKeyPressed(ebiten.KeyW):
@@ -123,7 +180,9 @@ func (scene *ScenePlay) pacManDirection() Direction {
 	case ebiten.IsKeyPressed(ebiten.KeyRight), ebiten.IsKeyPressed(ebiten.KeyD):
 		return DirectionRight
 	default:
-		return DirectionNone
+		direction := scene.touchDirection
+		scene.touchDirection = DirectionNone
+		return direction
 	}
 }
 
