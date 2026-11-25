@@ -60,7 +60,8 @@ var attractCopyrightColor = color.RGBA{R: 255, G: 184, B: 255, A: 255}
 
 // drawAttract renders the attract screen: the top HUD with the previous match's score,
 // the cast table revealed over time, the point legend, credit line, decoy energizer,
-// corridor chase and capture scores. The copyright appears when the chase starts.
+// corridor chase (ghosts first, then Pac-Man in front) and capture scores. The
+// copyright appears when the chase starts.
 func (scene *ScenePlay) drawAttract(screen *ebiten.Image) {
 	attract := scene.State.Attract
 	scene.drawTopLabel(screen, "1UP", oneUpColumn)
@@ -95,15 +96,17 @@ func (scene *ScenePlay) drawAttract(screen *ebiten.Image) {
 		scene.drawAttractText(screen, attractCopyright, attractCopyrightColumn, attractCopyrightRow, attractCopyrightColor)
 	}
 	scene.drawAttractText(screen, attractCredit, attractCreditColumn, attractCreditRow, color.White)
-	if attract.PacManVisible() {
-		scene.pacMan.DrawUnwrapped(screen, attract.PacMan)
-	}
 	for index, ghost := range attract.Ghosts {
 		if !attract.GhostVisible(index) {
 			continue
 		}
 		frame := scene.ghostFrame(ghost.Kind, attract.GhostDirection(), attract.GhostMode(), attract.Ticks, false)
 		drawSpriteCentered(screen, frame, ghost.X, attractChaseY())
+	}
+	// Pac-Man is drawn after the ghosts so it stays in front when the sprites overlap
+	// while it catches them.
+	if attract.PacManVisible() {
+		scene.pacMan.DrawUnwrapped(screen, attract.PacMan)
 	}
 	if points := attract.CapturePoints(); points > 0 {
 		op := &text.DrawOptions{}
